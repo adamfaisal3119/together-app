@@ -2,69 +2,47 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
+const FEATURES = [
+  { href: '/groups', emoji: '👥', title: 'Your groups', desc: 'Manage who is in your circle' },
+  { href: '/calendar', emoji: '📅', title: 'My calendar', desc: 'Your personal schedule, private to you' },
+  { href: '/groups', emoji: '💬', title: 'Group chat', desc: 'Message your group in real time' },
+  { href: '/groups', emoji: '📸', title: 'Memories', desc: 'Photos and videos from your adventures' },
+  { href: '#', emoji: '🗺️', title: 'Bucket list', desc: 'Activities you want to do together' },
+  { href: '#', emoji: '🔥', title: 'Streaks', desc: 'Track how often you hang out' },
+]
+
 export default async function Dashboard() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  if (!user) {
-    redirect('/login')
-  }
+  const firstName = user.email?.split('@')[0] ?? 'there'
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      {/* Top nav */}
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-violet-400">Together</h1>
-        <p className="text-gray-400 text-sm">{user.email}</p>
+    <main className="min-h-screen bg-base text-fg">
+      <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between">
+        <span className="text-xl font-bold text-accent-lt tracking-tight">Together</span>
+        <div className="flex items-center gap-3">
+          <span className="text-fg-muted text-sm hidden sm:block">{user.email}</span>
+        </div>
       </nav>
 
-      {/* Main content */}
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <h2 className="text-3xl font-bold mb-2">Welcome back 👋</h2>
-        <p className="text-gray-400 mb-10">Here is what is happening with your groups</p>
+      <div className="max-w-5xl mx-auto px-6 py-12">
+        <div className="mb-10">
+          <h2 className="text-3xl font-bold text-fg tracking-tight">Hey, {firstName} 👋</h2>
+          <p className="text-fg-muted mt-1">Here is what is happening with your groups.</p>
+        </div>
 
-        {/* Feature cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-            <div className="text-3xl mb-3">📅</div>
-            <h3 className="text-lg font-semibold mb-1">Calendar</h3>
-            <p className="text-gray-400 text-sm">Plan and schedule activities with your group</p>
-          </div>
-
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-            <div className="text-3xl mb-3">💬</div>
-            <h3 className="text-lg font-semibold mb-1">Group chat</h3>
-            <p className="text-gray-400 text-sm">Message your group in real time</p>
-          </div>
-
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-            <div className="text-3xl mb-3">📸</div>
-            <h3 className="text-lg font-semibold mb-1">Memories</h3>
-            <p className="text-gray-400 text-sm">Photos and videos from your activities</p>
-          </div>
-          <Link href="/groups">
-            <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-                <div className="text-3xl mb-3">👥</div>
-                <h3 className="text-lg font-semibold mb-1">Your groups</h3>
-                <p className="text-gray-400 text-sm">Manage who is in your circle</p>
-            </div>
-          </Link>
-
-          
-
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-            <div className="text-3xl mb-3">🗺️</div>
-            <h3 className="text-lg font-semibold mb-1">Bucket list</h3>
-            <p className="text-gray-400 text-sm">Activities you want to do together</p>
-          </div>
-
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer">
-            <div className="text-3xl mb-3">🔥</div>
-            <h3 className="text-lg font-semibold mb-1">Streaks</h3>
-            <p className="text-gray-400 text-sm">Track how often you hang out</p>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FEATURES.map(f => (
+            <Link key={f.title} href={f.href}>
+              <div className="group bg-surface rounded-2xl p-6 border border-edge-dim hover:border-accent transition-colors cursor-pointer">
+                <div className="text-3xl mb-4">{f.emoji}</div>
+                <h3 className="font-semibold text-fg mb-1">{f.title}</h3>
+                <p className="text-fg-muted text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </main>

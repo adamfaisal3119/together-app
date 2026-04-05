@@ -14,9 +14,7 @@ interface Group {
 interface Member {
   user_id: string
   role: string
-  profiles: {
-    full_name: string | null
-  } | null
+  profiles: { full_name: string | null } | null
 }
 
 interface RawMember {
@@ -31,7 +29,7 @@ export default function GroupPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteMessage, setInviteMessage] = useState('')
+  const [inviteMessage, setInviteMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -48,7 +46,7 @@ export default function GroupPage() {
       const mapped = (memberData as RawMember[]).map(m => ({
         user_id: m.user_id,
         role: m.role,
-        profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles
+        profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
       }))
       setMembers(mapped)
     }
@@ -61,10 +59,7 @@ export default function GroupPage() {
       setUser(user)
 
       const { data: groupData } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('id', groupId)
-        .single()
+        .from('groups').select('*').eq('id', groupId).single()
       if (groupData) setGroup(groupData as Group)
 
       await loadMembers()
@@ -77,13 +72,10 @@ export default function GroupPage() {
     if (!inviteEmail.trim()) return
 
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('full_name', inviteEmail.trim())
-      .single()
+      .from('profiles').select('id').eq('full_name', inviteEmail.trim()).single()
 
     if (!profile) {
-      setInviteMessage('❌ No user found with that name. Make sure they have signed up first.')
+      setInviteMessage({ text: 'No user found with that name. Make sure they have signed up first.', ok: false })
       return
     }
 
@@ -92,9 +84,9 @@ export default function GroupPage() {
       .insert({ group_id: groupId, user_id: profile.id, role: 'member' })
 
     if (error) {
-      setInviteMessage('❌ Failed to add member. They may already be in the group.')
+      setInviteMessage({ text: 'Failed to add member. They may already be in the group.', ok: false })
     } else {
-      setInviteMessage('✅ Member added successfully!')
+      setInviteMessage({ text: 'Member added successfully!', ok: true })
       setInviteEmail('')
       await loadMembers()
     }
@@ -102,95 +94,96 @@ export default function GroupPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <main className="min-h-screen bg-base text-fg flex items-center justify-center">
+        <p className="text-fg-muted">Loading…</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => router.push('/groups')} className="text-violet-400 hover:text-violet-300 font-bold text-xl">
+    <main className="min-h-screen bg-base text-fg">
+      <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between">
+        <button
+          onClick={() => router.push('/groups')}
+          className="text-accent-lt hover:text-fg font-semibold transition-colors"
+        >
           ← Groups
         </button>
-        <h1 className="text-lg font-semibold">{group?.name}</h1>
+        <h1 className="text-sm font-semibold text-fg-muted">{group?.name}</h1>
         <div className="w-20" />
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-10">
+      <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
 
-        <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 mb-8">
-          <h2 className="text-2xl font-bold mb-1">{group?.name}</h2>
-          <p className="text-gray-400">{group?.description || 'No description'}</p>
+        {/* Group header */}
+        <div className="bg-surface rounded-2xl p-6 border border-edge-dim">
+          <h2 className="text-2xl font-bold text-fg tracking-tight mb-1">{group?.name}</h2>
+          <p className="text-fg-muted text-sm">{group?.description || 'No description'}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div
-            onClick={() => router.push(`/groups/${groupId}/chat`)}
-            className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer text-center"
-          >
-            <p className="text-3xl mb-2">💬</p>
-            <p className="font-semibold">Group chat</p>
-          </div>
-          <div
-            onClick={() => router.push(`/groups/${groupId}/calendar`)}
-            className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer text-center"
-          >
-            <p className="text-3xl mb-2">📅</p>
-            <p className="font-semibold">Calendar</p>
-          </div>
-          <div
-            onClick={() => router.push(`/groups/${groupId}/memories`)}
-            className="bg-gray-900 rounded-2xl p-6 border border-gray-800 hover:border-violet-500 transition-colors cursor-pointer text-center"
-          >
-            <p className="text-3xl mb-2">📸</p>
-            <p className="font-semibold">Memories</p>
-          </div>
+        {/* Action cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { label: 'Group chat', emoji: '💬', path: `/groups/${groupId}/chat` },
+            { label: 'Calendar', emoji: '📅', path: `/groups/${groupId}/calendar` },
+            { label: 'Memories', emoji: '📸', path: `/groups/${groupId}/memories` },
+          ].map(card => (
+            <div
+              key={card.label}
+              onClick={() => router.push(card.path)}
+              className="bg-surface rounded-2xl p-6 border border-edge-dim hover:border-accent transition-colors cursor-pointer text-center"
+            >
+              <p className="text-3xl mb-2">{card.emoji}</p>
+              <p className="font-semibold text-fg text-sm">{card.label}</p>
+            </div>
+          ))}
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Members ({members.length})</h3>
+        {/* Members */}
+        <div className="bg-surface rounded-2xl p-6 border border-edge-dim">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-semibold text-fg">Members <span className="text-fg-faint font-normal">({members.length})</span></h3>
             <button
               onClick={() => setShowInvite(!showInvite)}
-              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-xl text-sm font-semibold transition-colors"
+              className="px-4 py-2 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors"
             >
               + Add member
             </button>
           </div>
 
           {showInvite && (
-            <div className="mb-4 space-y-3">
+            <div className="mb-5 space-y-3">
               <input
                 type="text"
                 placeholder="Enter their full name (as registered)"
                 value={inviteEmail}
                 onChange={e => setInviteEmail(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500"
+                className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm"
               />
               {inviteMessage && (
-                <p className="text-sm text-gray-300">{inviteMessage}</p>
+                <p className={`text-sm ${inviteMessage.ok ? 'text-accent-lt' : 'text-rose-400'}`}>
+                  {inviteMessage.text}
+                </p>
               )}
               <button
                 onClick={inviteUser}
-                className="px-6 py-2 bg-violet-600 hover:bg-violet-500 rounded-xl text-sm font-semibold transition-colors"
+                className="px-5 py-2.5 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors"
               >
                 Add to group
               </button>
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-1">
             {members.map((member) => (
-              <div key={member.user_id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+              <div key={member.user_id} className="flex items-center justify-between py-2.5 border-b border-edge-dim last:border-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-sm font-semibold">
+                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {member.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                   </div>
-                  <span>{member.profiles?.full_name || 'Unknown'}</span>
+                  <span className="text-fg text-sm">{member.profiles?.full_name || 'Unknown'}</span>
                 </div>
-                <span className="text-xs text-gray-500 capitalize">{member.role}</span>
+                <span className="text-xs text-fg-faint capitalize">{member.role}</span>
               </div>
             ))}
           </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
@@ -18,25 +18,20 @@ export default function ChatPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [groupName, setGroupName] = useState('')
   const [sending, setSending] = useState(false)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
 
       const { data: groupData } = await supabase
-        .from('groups')
-        .select('name')
-        .eq('id', groupId)
-        .single()
+        .from('groups').select('name').eq('id', groupId).single()
       if (groupData) setGroupName(groupData.name)
 
       const { data } = await supabase
@@ -57,42 +52,32 @@ export default function ChatPage() {
           content: m.content,
           created_at: m.created_at,
           user_id: m.user_id,
-          profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles
+          profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
         }))
         setMessages(mapped)
       }
 
-      // Set up realtime subscription INSIDE load so it's all in one place
       const channel = supabase
         .channel(`chat-${groupId}-${Math.random()}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `group_id=eq.${groupId}`
-          },
-          (payload) => {
-            console.log('New message received:', payload.new)
-            setMessages(prev => [...prev, {
-              id: payload.new.id,
-              content: payload.new.content,
-              created_at: payload.new.created_at,
-              user_id: payload.new.user_id,
-              profiles: null
-            }])
-          }
-        )
-        .subscribe((status) => {
-          console.log('Realtime status:', status)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'messages',
+          filter: `group_id=eq.${groupId}`,
+        }, (payload) => {
+          setMessages(prev => [...prev, {
+            id: payload.new.id,
+            content: payload.new.content,
+            created_at: payload.new.created_at,
+            user_id: payload.new.user_id,
+            profiles: null,
+          }])
         })
+        .subscribe()
 
       return () => { supabase.removeChannel(channel) }
     }
 
     load()
-  }, [groupId])
+  }, [groupId, supabase, router])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -101,50 +86,40 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return
     setSending(true)
-
-    const { error } = await supabase.from('messages').insert({
+    await supabase.from('messages').insert({
       group_id: groupId,
       user_id: user.id,
-      content: newMessage.trim()
+      content: newMessage.trim(),
     })
-
-    if (error) console.log('Send error:', error)
     setNewMessage('')
     setSending(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+  const formatTime = (ts: string) =>
+    new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex flex-col">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between shrink-0">
+    <main className="min-h-screen bg-base text-fg flex flex-col">
+      <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between shrink-0">
         <button
           onClick={() => router.push(`/groups/${groupId}`)}
-          className="text-violet-400 hover:text-violet-300 font-bold text-xl"
+          className="text-accent-lt hover:text-fg font-semibold transition-colors"
         >
           ← {groupName}
         </button>
-        <h1 className="text-lg font-semibold">💬 Group chat</h1>
+        <h1 className="text-sm font-semibold text-fg-muted">Group chat</h1>
         <div className="w-24" />
       </nav>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-20">
-            <p className="text-5xl mb-4">💬</p>
-            <p className="text-gray-400">No messages yet — say hello!</p>
+            <p className="text-4xl mb-3">💬</p>
+            <p className="text-fg-muted text-sm">No messages yet — say hello!</p>
           </div>
         )}
 
@@ -154,44 +129,44 @@ export default function ChatPage() {
             <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <div className="flex items-end gap-2">
                 {!isMe && (
-                  <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {message.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                   </div>
                 )}
-                <div className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-3 rounded-2xl ${
+                <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                   isMe
-                    ? 'bg-violet-600 text-white rounded-br-sm'
-                    : 'bg-gray-800 text-white rounded-bl-sm'
+                    ? 'bg-accent text-white rounded-br-sm'
+                    : 'bg-elevated text-fg rounded-bl-sm'
                 }`}>
                   {!isMe && (
-                    <p className="text-xs text-violet-300 font-semibold mb-1">
+                    <p className="text-accent-lt text-xs font-semibold mb-1">
                       {message.profiles?.full_name || 'Unknown'}
                     </p>
                   )}
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  {message.content}
                 </div>
               </div>
-              <p className="text-xs text-gray-600 mt-1 px-2">{formatTime(message.created_at)}</p>
+              <p className="text-xs text-fg-faint mt-1 px-2">{formatTime(message.created_at)}</p>
             </div>
           )
         })}
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-gray-800 px-6 py-4 shrink-0">
+      <div className="border-t border-edge-dim px-6 py-4 shrink-0">
         <div className="flex gap-3 items-end">
           <textarea
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message... (Enter to send)"
+            placeholder="Type a message… (Enter to send)"
             rows={1}
-            className="flex-1 px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500 resize-none"
+            className="flex-1 px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-sm"
           />
           <button
             onClick={sendMessage}
             disabled={sending || !newMessage.trim()}
-            className="px-6 py-3 bg-violet-600 hover:bg-violet-500 rounded-xl font-semibold transition-colors disabled:opacity-50 shrink-0"
+            className="px-5 py-3 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 shrink-0"
           >
             Send
           </button>
