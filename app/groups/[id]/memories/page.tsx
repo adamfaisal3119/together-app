@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
 interface Memory {
   id: string
-  file_url: string
-  file_type: string
+  storage_path: string
   caption: string | null
   created_at: string
-  uploaded_by: string
-  profiles: { full_name: string | null } | null
+  user_id: string
+  url: string
+  is_video: boolean
+  uploader_name: string
 }
 
 export default function MemoriesPage() {
@@ -20,12 +21,10 @@ export default function MemoriesPage() {
   const [groupName, setGroupName] = useState('')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [caption, setCaption] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState('')
-  const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [caption, setCaption] = useState('')
+  const [selected, setSelected] = useState<Memory | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
@@ -33,26 +32,31 @@ export default function MemoriesPage() {
 
   const fetchMemories = useCallback(async () => {
     const { data } = await supabase
-      .from('memories')
-      .select('id, file_url, file_type, caption, created_at, uploaded_by, profiles(full_name)')
+      .from('group_memories')
+      .select('id, storage_path, caption, created_at, user_id, profiles(full_name, username)')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
 
-    if (data) {
-      const mapped: Memory[] = data.map((m: {
-        id: string
-        file_url: string
-        file_type: string
-        caption: string | null
-        created_at: string
-        uploaded_by: string
-        profiles: { full_name: string | null } | { full_name: string | null }[] | null
-      }) => ({
-        ...m,
-        profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
-      }))
-      setMemories(mapped)
-    }
+    if (!data) return
+
+    const withUrls: Memory[] = data.map((m: {
+      id: string; storage_path: string; caption: string | null; created_at: string; user_id: string
+      profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
+    }) => {
+      const { data: urlData } = supabase.storage.from('memories').getPublicUrl(m.storage_path)
+      const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
+      return {
+        id: m.id,
+        storage_path: m.storage_path,
+        caption: m.caption,
+        created_at: m.created_at,
+        user_id: m.user_id,
+        url: urlData.publicUrl,
+        is_video: /\.(mp4|mov|webm|avi)$/i.test(m.storage_path),
+        uploader_name: profile?.full_name || profile?.username || 'Unknown',
+      }
+    })
+    setMemories(withUrls)
   }, [supabase, groupId])
 
   useEffect(() => {
@@ -60,215 +64,153 @@ export default function MemoriesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-
-      const { data: groupData } = await supabase
-        .from('groups').select('name').eq('id', groupId).single()
-      if (groupData) setGroupName(groupData.name)
-
+      const { data: g } = await supabase.from('groups').select('name').eq('id', groupId).single()
+      if (g) setGroupName(g.name)
       await fetchMemories()
       setLoading(false)
     }
     load()
-  }, [groupId, supabase, router, fetchMemories])
+  }, [supabase, router, groupId, fetchMemories])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 50 * 1024 * 1024) { setUploadError('File must be under 50MB'); return }
-    setSelectedFile(file)
-    setUploadError('')
-    setPreview(URL.createObjectURL(file))
-  }
+    if (!file || !user) return
+    if (file.size > 50 * 1024 * 1024) { setUploadError('File too large — max 50 MB.'); return }
 
-  const uploadMemory = async () => {
-    if (!selectedFile || !user) return
     setUploading(true)
     setUploadError('')
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}/${groupId}/${Date.now()}.${ext}`
 
-    const fileExt = selectedFile.name.split('.').pop()
-    const fileName = `${groupId}/${Date.now()}.${fileExt}`
+    const { error: uploadErr } = await supabase.storage.from('memories').upload(path, file)
+    if (uploadErr) { setUploadError('Upload failed: ' + uploadErr.message); setUploading(false); return }
 
-    const { error: storageError } = await supabase.storage
-      .from('memories').upload(fileName, selectedFile)
-
-    if (storageError) {
-      setUploadError('Upload failed: ' + storageError.message)
-      setUploading(false)
-      return
-    }
-
-    const { data: urlData } = supabase.storage.from('memories').getPublicUrl(fileName)
-
-    const { error: dbError } = await supabase.from('memories').insert({
-      group_id: groupId,
-      uploaded_by: user.id,
-      file_url: urlData.publicUrl,
-      file_type: selectedFile.type.startsWith('video') ? 'video' : 'image',
-      caption: caption.trim() || null,
+    await supabase.from('group_memories').insert({
+      group_id: groupId, user_id: user.id,
+      storage_path: path, caption: caption.trim() || null,
     })
-
-    if (dbError) {
-      setUploadError('Failed to save memory: ' + dbError.message)
-    } else {
-      setSelectedFile(null)
-      setPreview(null)
-      setCaption('')
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      await fetchMemories()
-    }
+    setCaption('')
+    if (fileRef.current) fileRef.current.value = ''
+    await fetchMemories()
     setUploading(false)
   }
 
-  const cancelUpload = () => {
-    setSelectedFile(null)
-    setPreview(null)
-    setCaption('')
-    setUploadError('')
-    if (fileInputRef.current) fileInputRef.current.value = ''
+  const deleteMemory = async (memory: Memory) => {
+    await supabase.storage.from('memories').remove([memory.storage_path])
+    await supabase.from('group_memories').delete().eq('id', memory.id)
+    setSelected(null)
+    await fetchMemories()
   }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-base">
-        <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
-          <div className="h-4 w-20 bg-elevated animate-pulse rounded" />
-          <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
-          <div className="h-8 w-20 bg-elevated animate-pulse rounded-xl" />
-        </nav>
-        <div className="max-w-5xl mx-auto px-5 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[1,2,3,4,5,6].map(i => (
-              <div key={i} className="aspect-square rounded-2xl bg-elevated animate-pulse" />
-            ))}
-          </div>
+  if (loading) return (
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+        <div className="h-4 w-24 bg-elevated animate-pulse rounded" />
+        <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
+        <div className="h-8 w-16 bg-elevated animate-pulse rounded-xl" />
+      </nav>
+      <div className="max-w-2xl mx-auto px-5 py-8">
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="aspect-square bg-surface rounded-xl animate-pulse" />
+          ))}
         </div>
-      </main>
-    )
-  }
+      </div>
+    </main>
+  )
 
   return (
-    <main className="min-h-screen bg-base text-fg">
-      <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => router.push(`/groups/${groupId}`)}
-          className="text-accent-lt hover:text-fg font-semibold transition-colors"
-        >
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+        <button onClick={() => router.push(`/groups/${groupId}`)} className="text-accent-lt hover:text-fg font-semibold transition-colors">
           ← {groupName}
         </button>
         <h1 className="text-sm font-semibold text-fg-muted">Memories</h1>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-4 py-2 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors"
-        >
-          + Upload
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="px-4 py-2 bg-accent hover:bg-accent-dk active:scale-95 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
+          {uploading ? 'Uploading…' : '+ Add'}
         </button>
       </nav>
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+      <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleUpload} />
 
-        {/* Upload preview */}
-        {preview && (
-          <div className="bg-surface rounded-2xl p-6 border border-accent mb-8">
-            <h3 className="font-semibold text-fg mb-4">Upload memory</h3>
-            <div className="mb-4 rounded-xl overflow-hidden max-h-80">
-              {selectedFile?.type.startsWith('video') ? (
-                <video src={preview} controls className="w-full max-h-80 object-contain bg-black" />
-              ) : (
-                <img src={preview} alt="Preview" className="w-full max-h-80 object-contain bg-black" />
-              )}
-            </div>
-            <input
-              type="text"
-              placeholder="Add a caption… (optional)"
-              value={caption}
-              onChange={e => setCaption(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm mb-4"
-            />
-            {uploadError && <p className="text-rose-400 text-sm mb-4">{uploadError}</p>}
-            <div className="flex gap-3">
-              <button onClick={uploadMemory} disabled={uploading}
-                className="px-5 py-2.5 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">
-                {uploading ? 'Uploading…' : 'Upload'}
-              </button>
-              <button onClick={cancelUpload}
-                className="px-5 py-2.5 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors">
-                Cancel
-              </button>
-            </div>
-          </div>
+      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4">
+        {uploadError && (
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3 text-rose-400 text-sm">{uploadError}</div>
         )}
 
-        {/* Grid */}
+        {/* Caption input */}
+        <div className="flex gap-2">
+          <input type="text" placeholder="Caption for your next upload (optional)…" value={caption}
+            onChange={e => setCaption(e.target.value)}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-surface text-fg border border-edge-dim focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm" />
+        </div>
+
         {memories.length === 0 ? (
-          <div className="text-center py-24">
-            <p className="text-4xl mb-3">📸</p>
-            <p className="text-fg-muted">No memories yet</p>
-            <p className="text-fg-faint text-sm mt-1">Upload your first photo or video.</p>
-            <button onClick={() => fileInputRef.current?.click()}
-              className="mt-6 px-5 py-2.5 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors">
-              Upload a memory
-            </button>
+          <div onClick={() => fileRef.current?.click()}
+            className="flex flex-col items-center justify-center py-24 bg-surface rounded-2xl border-2 border-dashed border-edge cursor-pointer hover:border-accent transition-colors">
+            <p className="text-5xl mb-4">📸</p>
+            <p className="text-fg font-medium">No memories yet</p>
+            <p className="text-fg-muted text-sm mt-1">Tap to add a photo or video</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-1.5">
             {memories.map(memory => (
-              <div
-                key={memory.id}
-                onClick={() => setSelectedMemory(memory)}
-                className="relative group cursor-pointer rounded-2xl overflow-hidden bg-surface aspect-square"
-              >
-                {memory.file_type === 'video' ? (
-                  <video src={memory.file_url} className="w-full h-full object-cover" />
+              <button key={memory.id} onClick={() => setSelected(memory)}
+                className="relative aspect-square rounded-xl overflow-hidden bg-elevated group">
+                {memory.is_video ? (
+                  <video src={memory.url} className="w-full h-full object-cover" muted />
                 ) : (
-                  <img src={memory.file_url} alt={memory.caption || 'Memory'} className="w-full h-full object-cover" />
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={memory.url} alt={memory.caption || ''} className="w-full h-full object-cover" />
                 )}
-                {memory.file_type === 'video' && (
-                  <div className="absolute top-2 right-2 bg-black/60 rounded-full px-2 py-1 text-xs">🎥</div>
+                {memory.is_video && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    </div>
+                  </div>
                 )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
-                  {memory.caption && (
-                    <p className="text-white text-xs p-3 opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2">
-                      {memory.caption}
-                    </p>
-                  )}
-                </div>
-              </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+              </button>
             ))}
+            <button onClick={() => fileRef.current?.click()}
+              className="aspect-square rounded-xl bg-surface border-2 border-dashed border-edge hover:border-accent flex items-center justify-center transition-colors">
+              <span className="text-2xl text-fg-faint">+</span>
+            </button>
           </div>
         )}
       </div>
 
       {/* Lightbox */}
-      {selectedMemory && (
-        <div
-          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedMemory(null)}
-        >
-          <div
-            className="max-w-3xl w-full bg-surface rounded-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="relative">
-              {selectedMemory.file_type === 'video' ? (
-                <video src={selectedMemory.file_url} controls className="w-full max-h-96 object-contain bg-black" />
-              ) : (
-                <img src={selectedMemory.file_url} alt={selectedMemory.caption || 'Memory'} className="w-full max-h-96 object-contain bg-black" />
-              )}
-            </div>
-            <div className="p-4">
-              {selectedMemory.caption && <p className="text-fg mb-2 text-sm">{selectedMemory.caption}</p>}
-              <div className="flex items-center justify-between">
-                <p className="text-fg-muted text-xs">
-                  {selectedMemory.profiles?.full_name || 'Unknown'} · {formatDate(selectedMemory.created_at)}
-                </p>
-                <button onClick={() => setSelectedMemory(null)}
-                  className="px-4 py-2 bg-elevated hover:bg-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors">
+      {selected && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex flex-col" onClick={() => setSelected(null)}>
+          <div className="flex-1 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            {selected.is_video ? (
+              <video src={selected.url} controls autoPlay className="max-w-full max-h-full rounded-2xl" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selected.url} alt={selected.caption || ''} className="max-w-full max-h-full rounded-2xl object-contain" />
+            )}
+          </div>
+          <div className="bg-surface/95 backdrop-blur-md border-t border-edge-dim px-5 py-5" onClick={e => e.stopPropagation()}>
+            <div className="max-w-lg mx-auto">
+              {selected.caption && <p className="text-fg font-medium mb-1">{selected.caption}</p>}
+              <p className="text-fg-faint text-xs">{selected.uploader_name} · {formatDate(selected.created_at)}</p>
+              <div className="flex gap-3 mt-3">
+                <button onClick={() => setSelected(null)}
+                  className="flex-1 py-2.5 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors">
                   Close
                 </button>
+                {selected.user_id === user?.id && (
+                  <button onClick={() => deleteMemory(selected)}
+                    className="flex-1 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors">
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           </div>

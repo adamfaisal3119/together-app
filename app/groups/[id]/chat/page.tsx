@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+
+const PAGE_SIZE = 30
 
 interface Message {
   id: string
@@ -13,17 +15,57 @@ interface Message {
   profiles: { full_name: string | null } | null
 }
 
+function normalise(m: {
+  id: string; content: string; created_at: string; user_id: string
+  profiles: { full_name: string | null } | { full_name: string | null }[] | null
+}): Message {
+  return {
+    id: m.id, content: m.content, created_at: m.created_at, user_id: m.user_id,
+    profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
+  }
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [groupName, setGroupName] = useState('')
   const [sending, setSending] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const prevScrollHeightRef = useRef(0)
+
+  const loadOlder = useCallback(async (before: string) => {
+    setLoadingMore(true)
+    const { data } = await supabase
+      .from('messages')
+      .select('id, content, created_at, user_id, profiles(full_name)')
+      .eq('group_id', groupId)
+      .lt('created_at', before)
+      .order('created_at', { ascending: false })
+      .limit(PAGE_SIZE)
+    setLoadingMore(false)
+    if (!data || data.length === 0) { setHasMore(false); return }
+    // Save scroll height before prepend so we can restore position
+    if (scrollRef.current) prevScrollHeightRef.current = scrollRef.current.scrollHeight
+    setMessages(prev => [...(data as Parameters<typeof normalise>[0][]).reverse().map(normalise), ...prev])
+    setHasMore(data.length === PAGE_SIZE)
+  }, [supabase, groupId])
+
+  // Restore scroll position after older messages are prepended
+  useEffect(() => {
+    if (!loadingMore && prevScrollHeightRef.current && scrollRef.current) {
+      const added = scrollRef.current.scrollHeight - prevScrollHeightRef.current
+      scrollRef.current.scrollTop += added
+      prevScrollHeightRef.current = 0
+    }
+  }, [messages, loadingMore])
 
   // Load data
   useEffect(() => {
@@ -40,22 +82,18 @@ export default function ChatPage() {
         .from('messages')
         .select('id, content, created_at, user_id, profiles(full_name)')
         .eq('group_id', groupId)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE)
 
       if (data) {
-        setMessages(data.map((m: {
-          id: string; content: string; created_at: string; user_id: string
-          profiles: { full_name: string | null } | { full_name: string | null }[] | null
-        }) => ({
-          id: m.id, content: m.content, created_at: m.created_at, user_id: m.user_id,
-          profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
-        })))
+        setMessages((data as Parameters<typeof normalise>[0][]).reverse().map(normalise))
+        setHasMore(data.length === PAGE_SIZE)
       }
     }
     load()
   }, [groupId, supabase, router])
 
-  // Realtime subscription — separate effect so cleanup works correctly
+  // Realtime subscription
   useEffect(() => {
     let channel: RealtimeChannel | null = null
 
@@ -66,7 +104,6 @@ export default function ChatPage() {
         filter: `group_id=eq.${groupId}`,
       }, (payload) => {
         setMessages(prev => {
-          // Deduplicate: ignore if we already have this message id
           if (prev.some(m => m.id === payload.new.id)) return prev
           return [...prev, {
             id: payload.new.id,
@@ -79,30 +116,32 @@ export default function ChatPage() {
       })
       .subscribe()
 
-    return () => {
-      if (channel) supabase.removeChannel(channel)
-    }
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [groupId, supabase])
 
+  // Scroll to bottom on initial load and new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [])
+  useEffect(() => {
+    if (!loadingMore) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loadingMore])
+
+  // Detect scroll to top
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current || loadingMore || !hasMore) return
+    if (scrollRef.current.scrollTop < 60 && messages.length > 0) {
+      loadOlder(messages[0].created_at)
+    }
+  }, [loadingMore, hasMore, messages, loadOlder])
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return
     const content = newMessage.trim()
     setNewMessage('')
 
-    // Optimistic insert
     const tempId = `temp-${Date.now()}`
-    const optimistic: Message = {
-      id: tempId,
-      content,
-      created_at: new Date().toISOString(),
-      user_id: user.id,
-      profiles: null,
-    }
-    setMessages(prev => [...prev, optimistic])
+    setMessages(prev => [...prev, { id: tempId, content, created_at: new Date().toISOString(), user_id: user.id, profiles: null }])
 
     setSending(true)
     const { data } = await supabase
@@ -112,7 +151,6 @@ export default function ChatPage() {
       .single()
     setSending(false)
 
-    // Replace temp message with real id
     if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
     }
@@ -138,7 +176,21 @@ export default function ChatPage() {
         <div className="w-24" />
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+        {loadingMore && (
+          <div className="flex justify-center py-2">
+            <div className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+          </div>
+        )}
+        {hasMore && !loadingMore && messages.length > 0 && (
+          <div className="flex justify-center">
+            <button onClick={() => loadOlder(messages[0].created_at)}
+              className="text-xs text-accent-lt hover:text-fg transition-colors px-3 py-1.5 rounded-full bg-elevated">
+              Load older messages
+            </button>
+          </div>
+        )}
+
         {messages.length === 0 && (
           <div className="text-center py-20">
             <p className="text-4xl mb-3">💬</p>

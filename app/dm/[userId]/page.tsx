@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -19,11 +19,14 @@ export default function DMPage() {
   const [friendName, setFriendName] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [friendTyping, setFriendTyping] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const friendId = params.userId as string
   const bottomRef = useRef<HTMLDivElement>(null)
+  const presenceChannelRef = useRef<RealtimeChannel | null>(null)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -78,6 +81,33 @@ export default function DMPage() {
     }
   }, [friendId, supabase])
 
+  // Presence-based typing indicator
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase.channel(`dm-presence-${[user.id, friendId].sort().join('-')}`, {
+      config: { presence: { key: user.id } },
+    })
+    presenceChannelRef.current = channel
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ typing: boolean }>()
+        const friendState = state[friendId]
+        setFriendTyping(Array.isArray(friendState) ? friendState[0]?.typing === true : false)
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ typing: false })
+        }
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user, friendId, supabase])
+
+  const broadcastTyping = useCallback(async (isTyping: boolean) => {
+    await presenceChannelRef.current?.track({ typing: isTyping })
+  }, [])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -86,6 +116,8 @@ export default function DMPage() {
     if (!newMessage.trim() || !user || sending) return
     const content = newMessage.trim()
     setNewMessage('')
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    broadcastTyping(false)
 
     // Optimistic insert
     const tempId = `temp-${Date.now()}`
@@ -107,6 +139,13 @@ export default function DMPage() {
     if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
     }
+  }
+
+  const handleTyping = (value: string) => {
+    setNewMessage(value)
+    broadcastTyping(true)
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    typingTimeoutRef.current = setTimeout(() => broadcastTyping(false), 2500)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -164,6 +203,15 @@ export default function DMPage() {
             </div>
           )
         })}
+        {friendTyping && (
+          <div className="flex items-start">
+            <div className="px-4 py-3 rounded-2xl rounded-bl-sm bg-elevated text-fg-muted text-sm flex gap-1 items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-fg-faint animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-fg-faint animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-fg-faint animate-bounce [animation-delay:300ms]" />
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -171,7 +219,7 @@ export default function DMPage() {
         <div className="flex gap-3 items-end">
           <textarea
             value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
+            onChange={e => handleTyping(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`Message ${friendName}…`}
             rows={1}

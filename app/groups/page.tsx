@@ -20,6 +20,7 @@ interface GroupMember {
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([])
+  const [filter, setFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [groupDescription, setGroupDescription] = useState('')
@@ -119,6 +120,14 @@ export default function GroupsPage() {
           <p className="text-fg-muted mt-1 text-sm">Create a group and invite your people.</p>
         </div>
 
+        {groups.length > 0 && (
+          <div className="relative mb-5">
+            <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" /></svg>
+            <input type="text" placeholder="Search groups…" value={filter} onChange={e => setFilter(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface text-fg border border-edge-dim focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm" />
+          </div>
+        )}
+
         {error && (
           <div className="mb-5 px-4 py-3 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-sm">
             {error}
@@ -171,7 +180,7 @@ export default function GroupsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {groups.map((group: Group) => (
+            {groups.filter(g => g.name.toLowerCase().includes(filter.toLowerCase())).map((group: Group) => (
               <div
                 key={group.id}
                 onClick={() => router.push(`/groups/${group.id}`)}

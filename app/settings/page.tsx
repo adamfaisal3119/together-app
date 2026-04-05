@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
@@ -13,9 +13,12 @@ export default function SettingsPage() {
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(true)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const avatarRef = useRef<HTMLInputElement>(null)
   const { accent, setAccent, bg, setBg } = useTheme()
   const [selectedAccent, setSelectedAccent] = useState<ThemeAccent>(accent)
   const [selectedBg, setSelectedBg] = useState<BgStyle>(bg)
@@ -28,10 +31,11 @@ export default function SettingsPage() {
       if (!user) { router.push('/login'); return }
       setUser(user)
       const { data: profile } = await supabase
-        .from('profiles').select('full_name, username').eq('id', user.id).single()
+        .from('profiles').select('full_name, username, avatar_url').eq('id', user.id).single()
       if (profile) {
         setFullName(profile.full_name || '')
         setUsername(profile.username || '')
+        setAvatarUrl(profile.avatar_url || null)
       }
       setLoading(false)
     }
@@ -76,6 +80,23 @@ export default function SettingsPage() {
     router.push('/login')
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    if (file.size > 5 * 1024 * 1024) { setMessage({ text: 'Image too large — max 5 MB.', ok: false }); return }
+    setAvatarUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}/avatar.${ext}`
+    const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+    if (uploadErr) { setMessage({ text: 'Upload failed: ' + uploadErr.message, ok: false }); setAvatarUploading(false); return }
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+    const newUrl = urlData.publicUrl + '?t=' + Date.now()
+    await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', user.id)
+    setAvatarUrl(newUrl)
+    setMessage({ text: 'Photo updated!', ok: true })
+    setAvatarUploading(false)
+  }
+
   const getInitials = () => {
     if (fullName) return fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     return user?.email?.[0].toUpperCase() || '?'
@@ -103,9 +124,22 @@ export default function SettingsPage() {
 
         {/* Avatar */}
         <div className="flex flex-col items-center py-6">
-          <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-white mb-3">
-            {getInitials()}
-          </div>
+          <button onClick={() => avatarRef.current?.click()} className="relative group mb-3">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="Avatar" className="w-20 h-20 rounded-full object-cover ring-2 ring-accent" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-2xl font-bold text-white">
+                {getInitials()}
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              <span className="text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                {avatarUploading ? '…' : 'Edit'}
+              </span>
+            </div>
+          </button>
+          <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           <p className="text-fg-muted text-sm">{user?.email}</p>
         </div>
 

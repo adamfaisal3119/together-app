@@ -65,6 +65,9 @@ export default function GroupPage() {
   const [inviteUsername, setInviteUsername] = useState('')
   const [inviteMessage, setInviteMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [showInvite, setShowInvite] = useState(false)
+  const [pollCount, setPollCount] = useState(0)
+  const [pastEventsCount, setPastEventsCount] = useState(0)
+  const [copied, setCopied] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
@@ -90,7 +93,13 @@ export default function GroupPage() {
       if (!user) { router.push('/login'); return }
       setUser(user)
 
-      const [{ data: groupData }, { data: eventsData }, { data: chatData }] = await Promise.all([
+      const [
+        { data: groupData },
+        { data: eventsData },
+        { data: chatData },
+        { count: pollCountData },
+        { count: pastCount },
+      ] = await Promise.all([
         supabase.from('groups').select('*').eq('id', groupId).single(),
         supabase.from('events').select('id, title, event_type, start_time, end_time, location')
           .eq('group_id', groupId)
@@ -102,9 +111,15 @@ export default function GroupPage() {
           .eq('group_id', groupId)
           .order('created_at', { ascending: false })
           .limit(1),
+        supabase.from('group_polls').select('*', { count: 'exact', head: true }).eq('group_id', groupId),
+        supabase.from('events').select('*', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+          .lt('start_time', new Date().toISOString()),
       ])
 
       if (groupData) setGroup(groupData as Group)
+      if (pollCountData !== null) setPollCount(pollCountData)
+      if (pastCount !== null) setPastEventsCount(pastCount)
 
       if (eventsData) setUpcomingEvents(eventsData as Event[])
 
@@ -191,33 +206,58 @@ export default function GroupPage() {
         {/* Header card */}
         <div className="bg-surface rounded-2xl p-5 border border-edge-dim">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h2 className="text-2xl font-bold text-fg tracking-tight">{group?.name}</h2>
               {group?.description && (
                 <p className="text-fg-muted text-sm mt-1">{group.description}</p>
               )}
-            </div>
-            {/* Stacked member avatars */}
-            <div className="flex -space-x-2 shrink-0">
-              {members.slice(0, 5).map(m => (
-                <MemberAvatar key={m.user_id} member={m} size="sm" />
-              ))}
-              {members.length > 5 && (
-                <div className="w-7 h-7 rounded-full bg-elevated border-2 border-base flex items-center justify-center text-xs text-fg-faint font-bold">
-                  +{members.length - 5}
+              {/* Milestone badge */}
+              {pastEventsCount >= 5 && (
+                <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30">
+                  <span className="text-sm">🏆</span>
+                  <span className="text-xs font-semibold text-yellow-500">
+                    {pastEventsCount}+ hangouts together
+                  </span>
                 </div>
               )}
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              {/* Share button */}
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/groups/${groupId}`
+                  navigator.clipboard.writeText(url).then(() => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  })
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-elevated hover:bg-edge text-fg-muted hover:text-fg text-xs font-medium transition-colors active:scale-95"
+              >
+                {copied ? '✓ Copied!' : '🔗 Share'}
+              </button>
+              {/* Stacked member avatars */}
+              <div className="flex -space-x-2">
+                {members.slice(0, 5).map(m => (
+                  <MemberAvatar key={m.user_id} member={m} size="sm" />
+                ))}
+                {members.length > 5 && (
+                  <div className="w-7 h-7 rounded-full bg-elevated border-2 border-base flex items-center justify-center text-xs text-fg-faint font-bold">
+                    +{members.length - 5}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <p className="text-fg-faint text-xs mt-3">{members.length} member{members.length !== 1 ? 's' : ''}</p>
         </div>
 
-        {/* Quick action cards */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Quick action cards — 2×2 */}
+        <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Chat', emoji: '💬', path: `/groups/${groupId}/chat`, preview: chatPreview ? `${chatPreview.sender_name}: ${chatPreview.content}` : 'No messages yet' },
             { label: 'Calendar', emoji: '📅', path: `/groups/${groupId}/calendar`, preview: upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'No events' },
             { label: 'Memories', emoji: '📸', path: `/groups/${groupId}/memories`, preview: 'Photos & videos' },
+            { label: 'Polls', emoji: '🗳️', path: `/groups/${groupId}/polls`, preview: pollCount > 0 ? `${pollCount} poll${pollCount !== 1 ? 's' : ''}` : 'Ask your group' },
           ].map(card => (
             <Link key={card.label} href={card.path}>
               <div className="card-hover bg-surface rounded-2xl p-4 border border-edge-dim hover:border-accent/60 h-full flex flex-col">

@@ -42,6 +42,7 @@ export default function FriendsPage() {
   const [searchResult, setSearchResult] = useState<Profile | null>(null)
   const [searchError, setSearchError] = useState('')
   const [searching, setSearching] = useState(false)
+  const [friendFilter, setFriendFilter] = useState('')
   const [tab, setTab] = useState<'friends' | 'requests'>('friends')
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const supabase = useMemo(() => createClient(), [])
@@ -194,38 +195,52 @@ export default function FriendsPage() {
         </div>
 
         {/* Friends list */}
-        {tab === 'friends' && (
-          friends.length === 0 ? (
-            <div className="text-center py-16 bg-surface rounded-2xl border border-edge-dim">
-              <p className="text-4xl mb-3">👥</p>
-              <p className="text-fg-muted font-medium">No friends yet</p>
-              <p className="text-fg-faint text-sm mt-1">Search for someone by username above</p>
-            </div>
-          ) : (
-            <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
-              {friends.map((f, i) => (
-                <div key={f.id} className={`flex items-center justify-between px-5 py-4 hover:bg-elevated transition-colors ${i < friends.length - 1 ? 'border-b border-edge-dim' : ''}`}>
-                  <div className="flex items-center gap-3">
-                    <Avatar profile={f.friend} />
-                    <div>
-                      <p className="font-medium text-fg text-sm">{f.friend.full_name || f.friend.username}</p>
-                      <p className="text-fg-muted text-xs">@{f.friend.username}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => router.push(`/dm/${f.friend.id}`)}
-                    className="relative px-3 py-1.5 bg-elevated hover:bg-accent hover:text-white active:scale-95 text-fg-muted rounded-xl text-xs font-semibold transition-all">
-                    Message
-                    {unreadCounts[f.friend.id] > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                        {unreadCounts[f.friend.id] > 9 ? '9+' : unreadCounts[f.friend.id]}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )
+        {tab === 'friends' && friends.length === 0 && (
+          <div className="text-center py-16 bg-surface rounded-2xl border border-edge-dim">
+            <p className="text-4xl mb-3">👥</p>
+            <p className="text-fg-muted font-medium">No friends yet</p>
+            <p className="text-fg-faint text-sm mt-1">Search for someone by username above</p>
+          </div>
         )}
+        {tab === 'friends' && friends.length > 0 && (() => {
+          const filtered = friends.filter(f => {
+            const name = (f.friend.full_name || f.friend.username || '').toLowerCase()
+            return name.includes(friendFilter.toLowerCase())
+          })
+          return (
+            <>
+              <div className="relative">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-faint" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" /></svg>
+                <input type="text" placeholder="Filter friends…" value={friendFilter} onChange={e => setFriendFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface text-fg border border-edge-dim focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm" />
+              </div>
+              <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
+                {filtered.length === 0 ? (
+                  <p className="text-center py-8 text-fg-muted text-sm">No friends match &ldquo;{friendFilter}&rdquo;</p>
+                ) : filtered.map((f, i) => (
+                  <div key={f.id} className={`flex items-center justify-between px-5 py-4 hover:bg-elevated transition-colors ${i < filtered.length - 1 ? 'border-b border-edge-dim' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <Avatar profile={f.friend} />
+                      <div>
+                        <p className="font-medium text-fg text-sm">{f.friend.full_name || f.friend.username}</p>
+                        <p className="text-fg-muted text-xs">@{f.friend.username}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => router.push(`/dm/${f.friend.id}`)}
+                      className="relative px-3 py-1.5 bg-elevated hover:bg-accent hover:text-white active:scale-95 text-fg-muted rounded-xl text-xs font-semibold transition-all">
+                      Message
+                      {unreadCounts[f.friend.id] > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-4.5 h-4.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                          {unreadCounts[f.friend.id] > 9 ? '9+' : unreadCounts[f.friend.id]}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        })()}
 
         {/* Requests */}
         {tab === 'requests' && (
