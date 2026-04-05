@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 interface PersonalEvent {
   id: string
@@ -37,17 +38,17 @@ export default function PersonalCalendarPage() {
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState('')
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  const fetchEvents = async (userId: string) => {
+  const fetchEvents = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('personal_events')
       .select('*')
       .eq('user_id', userId)
       .order('start_time', { ascending: true })
     if (data) setEvents(data as PersonalEvent[])
-  }
+  }, [supabase])
 
   useEffect(() => {
     const load = async () => {
@@ -58,7 +59,7 @@ export default function PersonalCalendarPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase, router, fetchEvents])
 
   const getWeekStart = (date: Date) => {
     const d = new Date(date)
@@ -77,38 +78,23 @@ export default function PersonalCalendarPage() {
   }
 
   const getEventsForDay = (date: Date) => {
-  return events.filter(e => {
-    const start = new Date(e.start_time)
-    
-    // Check exact date match first
-    const exactMatch =
-      start.getFullYear() === date.getFullYear() &&
-      start.getMonth() === date.getMonth() &&
-      start.getDate() === date.getDate()
-
-    if (exactMatch) return true
-
-    // Handle weekly recurring — same day of week, on or after start date
-    if (e.recurring === 'weekly') {
-      return start.getDay() === date.getDay() && date >= start
-    }
-
-    // Handle daily recurring — on or after start date
-    if (e.recurring === 'daily') {
-      return date >= start
-    }
-
-    return false
-  })
-}
+    return events.filter(e => {
+      const start = new Date(e.start_time)
+      const exactMatch =
+        start.getFullYear() === date.getFullYear() &&
+        start.getMonth() === date.getMonth() &&
+        start.getDate() === date.getDate()
+      if (exactMatch) return true
+      if (e.recurring === 'weekly') return start.getDay() === date.getDay() && date >= start
+      if (e.recurring === 'daily') return date >= start
+      return false
+    })
+  }
 
   const getEventsForDayMonth = (date: Date) => {
     return events.filter(e => {
       const start = new Date(e.start_time)
-      // also show weekly recurring
-      if (e.recurring === 'weekly') {
-        return start.getDay() === date.getDay()
-      }
+      if (e.recurring === 'weekly') return start.getDay() === date.getDay()
       return (
         start.getFullYear() === date.getFullYear() &&
         start.getMonth() === date.getMonth() &&
@@ -128,7 +114,6 @@ export default function PersonalCalendarPage() {
     }
     setCreating(true)
     setFormError('')
-
     const { error } = await supabase.from('personal_events').insert({
       user_id: user?.id,
       title: title.trim(),
@@ -138,17 +123,11 @@ export default function PersonalCalendarPage() {
       recurring,
       show_as: showAs
     })
-
     if (error) {
       setFormError('Failed to save: ' + error.message)
     } else {
-      setTitle('')
-      setDescription('')
-      setStartTime('')
-      setEndTime('')
-      setRecurring('none')
-      setShowAs('busy')
-      setShowCreate(false)
+      setTitle(''); setDescription(''); setStartTime(''); setEndTime('')
+      setRecurring('none'); setShowAs('busy'); setShowCreate(false)
       if (user) await fetchEvents(user.id)
     }
     setCreating(false)
@@ -166,7 +145,6 @@ export default function PersonalCalendarPage() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
 
-  // Month grid helpers
   const getMonthDays = () => {
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
@@ -181,88 +159,96 @@ export default function PersonalCalendarPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+        <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+          <div className="h-4 w-20 bg-elevated animate-pulse rounded" />
+          <div className="h-4 w-24 bg-elevated animate-pulse rounded" />
+          <div className="h-8 w-24 bg-elevated animate-pulse rounded-xl" />
+        </nav>
+        <div className="max-w-4xl mx-auto px-5 py-8">
+          <div className="grid grid-cols-7 gap-2">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="bg-surface rounded-2xl border border-edge-dim h-40 animate-pulse" />
+            ))}
+          </div>
+        </div>
+        <BottomNav />
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="text-violet-400 hover:text-violet-300 font-bold text-xl"
-        >
-          ← Together
-        </button>
-        <h1 className="text-lg font-semibold">🗓️ My calendar</h1>
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+        <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
+        <h1 className="text-sm font-semibold text-fg-muted">My Calendar</h1>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-xl text-sm font-semibold transition-colors"
+          className="px-4 py-2 bg-accent hover:bg-accent-dk active:scale-95 text-white rounded-xl text-sm font-semibold transition-all"
         >
           + Add event
         </button>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-5 py-6 space-y-5">
 
         {/* Privacy note */}
-        <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
+        <div className="bg-surface border border-edge-dim rounded-xl px-4 py-3 flex items-center gap-3">
           <span className="text-lg">🔒</span>
-          <p className="text-gray-400 text-sm">
-            Your event titles are private. Other group members only see you as <span className="text-red-400 font-medium">Busy</span> or <span className="text-green-400 font-medium">Free</span> during these times.
+          <p className="text-fg-muted text-sm">
+            Your event titles are private. Others only see you as{' '}
+            <span className="text-rose-400 font-medium">Busy</span> or{' '}
+            <span className="text-emerald-500 font-medium">Free</span>.
           </p>
         </div>
 
         {/* Create form */}
         {showCreate && (
-          <div className="bg-gray-900 rounded-2xl p-6 border border-violet-500 mb-8">
-            <h3 className="text-lg font-semibold mb-4">Add to your calendar</h3>
+          <div className="bg-surface rounded-2xl p-6 border border-accent">
+            <h3 className="text-lg font-semibold text-fg mb-4">Add to your calendar</h3>
             <div className="space-y-4">
               <input
                 type="text"
                 placeholder="Event title (private to you)"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500"
+                className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm"
               />
               <textarea
                 placeholder="Notes (optional, private)"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={2}
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500 resize-none"
+                className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-sm"
               />
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Start time *</p>
+                  <p className="text-sm text-fg-muted mb-1">Start time *</p>
                   <input
                     type="datetime-local"
                     value={startTime}
                     onChange={e => setStartTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500"
+                    className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent text-sm"
                   />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">End time *</p>
+                  <p className="text-sm text-fg-muted mb-1">End time *</p>
                   <input
                     type="datetime-local"
                     value={endTime}
                     onChange={e => setEndTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500"
+                    className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent text-sm"
                   />
                 </div>
               </div>
 
-              {/* Show as */}
               <div>
-                <p className="text-sm text-gray-400 mb-2">Show to others as</p>
+                <p className="text-sm text-fg-muted mb-2">Show to others as</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowAs('busy')}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                      showAs === 'busy' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                      showAs === 'busy' ? 'bg-rose-500 text-white' : 'bg-elevated text-fg-muted hover:text-fg'
                     }`}
                   >
                     🔴 Busy
@@ -270,7 +256,7 @@ export default function PersonalCalendarPage() {
                   <button
                     onClick={() => setShowAs('free')}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                      showAs === 'free' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                      showAs === 'free' ? 'bg-emerald-600 text-white' : 'bg-elevated text-fg-muted hover:text-fg'
                     }`}
                   >
                     🟢 Free
@@ -278,13 +264,12 @@ export default function PersonalCalendarPage() {
                 </div>
               </div>
 
-              {/* Recurring */}
               <div>
-                <p className="text-sm text-gray-400 mb-1">Repeat</p>
+                <p className="text-sm text-fg-muted mb-1">Repeat</p>
                 <select
                   value={recurring}
                   onChange={e => setRecurring(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-violet-500"
+                  className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent text-sm"
                 >
                   <option value="none">Does not repeat</option>
                   <option value="weekly">Every week</option>
@@ -292,19 +277,19 @@ export default function PersonalCalendarPage() {
                 </select>
               </div>
 
-              {formError && <p className="text-red-400 text-sm">{formError}</p>}
+              {formError && <p className="text-rose-400 text-sm">{formError}</p>}
 
               <div className="flex gap-3">
                 <button
                   onClick={createEvent}
                   disabled={creating}
-                  className="px-6 py-3 bg-violet-600 hover:bg-violet-500 rounded-xl font-semibold transition-colors disabled:opacity-50"
+                  className="px-6 py-3 bg-accent hover:bg-accent-dk active:scale-95 text-white rounded-xl font-semibold transition-all disabled:opacity-50 text-sm"
                 >
-                  {creating ? 'Saving...' : 'Save event'}
+                  {creating ? 'Saving…' : 'Save event'}
                 </button>
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="px-6 py-3 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition-colors"
+                  className="px-6 py-3 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -314,12 +299,12 @@ export default function PersonalCalendarPage() {
         )}
 
         {/* View toggle + navigation */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div className="flex gap-2">
             <button
               onClick={() => setView('week')}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                view === 'week' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                view === 'week' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
               }`}
             >
               Week
@@ -327,37 +312,37 @@ export default function PersonalCalendarPage() {
             <button
               onClick={() => setView('month')}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                view === 'month' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                view === 'month' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
               }`}
             >
               Month
             </button>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => {
                 const d = new Date(currentDate)
                 view === 'week' ? d.setDate(d.getDate() - 7) : d.setMonth(d.getMonth() - 1)
                 setCurrentDate(d)
               }}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors"
+              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors"
             >
               ←
             </button>
-            <h3 className="text-lg font-semibold min-w-48 text-center">
+            <span className="text-sm font-semibold text-fg min-w-40 text-center">
               {view === 'week'
                 ? `${getWeekStart(currentDate).toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`
                 : currentDate.toLocaleDateString([], { month: 'long', year: 'numeric' })
               }
-            </h3>
+            </span>
             <button
               onClick={() => {
                 const d = new Date(currentDate)
                 view === 'week' ? d.setDate(d.getDate() + 7) : d.setMonth(d.getMonth() + 1)
                 setCurrentDate(d)
               }}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors"
+              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors"
             >
               →
             </button>
@@ -365,7 +350,7 @@ export default function PersonalCalendarPage() {
 
           <button
             onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm transition-colors"
+            className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-sm text-fg-muted hover:text-fg transition-colors"
           >
             Today
           </button>
@@ -373,7 +358,7 @@ export default function PersonalCalendarPage() {
 
         {/* WEEK VIEW */}
         {view === 'week' && (
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1.5">
             {weekDays.map((day, i) => {
               const isToday = day.toDateString() === today.toDateString()
               const dayEvents = getEventsForDay(day)
@@ -381,15 +366,15 @@ export default function PersonalCalendarPage() {
                 <div
                   key={i}
                   className={`rounded-2xl border p-2 min-h-40 ${
-                    isToday ? 'border-violet-500 bg-violet-950' : 'border-gray-800 bg-gray-900'
+                    isToday ? 'border-accent bg-accent-bg' : 'border-edge-dim bg-surface'
                   }`}
                 >
                   <p className={`text-xs font-semibold text-center mb-2 ${
-                    isToday ? 'text-violet-400' : 'text-gray-400'
+                    isToday ? 'text-accent-lt' : 'text-fg-muted'
                   }`}>
                     {DAYS[day.getDay()]}
                     <br />
-                    <span className={`text-base ${isToday ? 'text-violet-300' : 'text-white'}`}>
+                    <span className={`text-base ${isToday ? 'text-accent-lt' : 'text-fg'}`}>
                       {day.getDate()}
                     </span>
                   </p>
@@ -400,8 +385,8 @@ export default function PersonalCalendarPage() {
                         onClick={() => setSelectedEvent(event)}
                         className={`text-xs rounded-lg px-1.5 py-1 cursor-pointer ${
                           event.show_as === 'busy'
-                            ? 'bg-red-900/60 text-red-300 border border-red-800'
-                            : 'bg-green-900/60 text-green-300 border border-green-800'
+                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
                         }`}
                       >
                         <p className="font-medium truncate">{event.title}</p>
@@ -420,7 +405,7 @@ export default function PersonalCalendarPage() {
           <div>
             <div className="grid grid-cols-7 mb-1">
               {DAYS.map(d => (
-                <div key={d} className="text-center text-xs text-gray-500 font-semibold py-2">
+                <div key={d} className="text-center text-xs text-fg-faint font-semibold py-2">
                   {d}
                 </div>
               ))}
@@ -442,13 +427,11 @@ export default function PersonalCalendarPage() {
                   <div
                     key={day}
                     className={`min-h-20 p-1 rounded-xl border transition-colors ${
-                      isToday
-                        ? 'border-violet-500 bg-violet-950'
-                        : 'border-gray-800 bg-gray-900'
+                      isToday ? 'border-accent bg-accent-bg' : 'border-edge-dim bg-surface'
                     }`}
                   >
                     <p className={`text-xs font-semibold text-center mb-1 ${
-                      isToday ? 'text-violet-400' : 'text-gray-400'
+                      isToday ? 'text-accent-lt' : 'text-fg-muted'
                     }`}>
                       {day}
                     </p>
@@ -458,15 +441,15 @@ export default function PersonalCalendarPage() {
                         onClick={() => setSelectedEvent(event)}
                         className={`text-xs rounded px-1 py-0.5 mb-0.5 truncate cursor-pointer ${
                           event.show_as === 'busy'
-                            ? 'bg-red-900/60 text-red-300'
-                            : 'bg-green-900/60 text-green-300'
+                            ? 'bg-rose-500/20 text-rose-400'
+                            : 'bg-emerald-500/20 text-emerald-500'
                         }`}
                       >
                         {event.title}
                       </div>
                     ))}
                     {dayEvents.length > 2 && (
-                      <p className="text-xs text-gray-600 text-center">+{dayEvents.length - 2}</p>
+                      <p className="text-xs text-fg-faint text-center">+{dayEvents.length - 2}</p>
                     )}
                   </div>
                 )
@@ -479,51 +462,47 @@ export default function PersonalCalendarPage() {
       {/* Event detail modal */}
       {selectedEvent && (
         <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setSelectedEvent(null)}
         >
           <div
-            className="bg-gray-900 rounded-2xl p-6 max-w-md w-full border border-gray-700"
+            className="bg-surface rounded-2xl p-6 max-w-md w-full border border-edge shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-xl font-bold mb-1">{selectedEvent.title}</h3>
+                <h3 className="text-xl font-bold text-fg mb-1">{selectedEvent.title}</h3>
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   selectedEvent.show_as === 'busy'
-                    ? 'bg-red-900/60 text-red-300'
-                    : 'bg-green-900/60 text-green-300'
+                    ? 'bg-rose-500/20 text-rose-400'
+                    : 'bg-emerald-500/20 text-emerald-500'
                 }`}>
                   Shows as {selectedEvent.show_as} to others
                 </span>
               </div>
             </div>
             <div className="space-y-2 mb-6">
-              <p className="text-gray-400 text-sm">
-                📅 {formatDate(selectedEvent.start_time)}
-              </p>
-              <p className="text-gray-400 text-sm">
+              <p className="text-fg-muted text-sm">📅 {formatDate(selectedEvent.start_time)}</p>
+              <p className="text-fg-muted text-sm">
                 🕐 {formatTime(selectedEvent.start_time)} – {formatTime(selectedEvent.end_time)}
               </p>
               {selectedEvent.recurring !== 'none' && (
-                <p className="text-gray-400 text-sm">
-                  🔁 Repeats {selectedEvent.recurring}
-                </p>
+                <p className="text-fg-muted text-sm">🔁 Repeats {selectedEvent.recurring}</p>
               )}
               {selectedEvent.description && (
-                <p className="text-gray-400 text-sm">📝 {selectedEvent.description}</p>
+                <p className="text-fg-muted text-sm">📝 {selectedEvent.description}</p>
               )}
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => deleteEvent(selectedEvent.id)}
-                className="flex-1 py-3 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-xl font-semibold transition-colors"
+                className="flex-1 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl font-semibold transition-colors text-sm"
               >
                 Delete event
               </button>
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="flex-1 py-3 border border-gray-700 rounded-xl text-gray-400 hover:text-white transition-colors"
+                className="flex-1 py-3 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors"
               >
                 Close
               </button>
@@ -531,6 +510,8 @@ export default function PersonalCalendarPage() {
           </div>
         </div>
       )}
+
+      <BottomNav />
     </main>
   )
 }

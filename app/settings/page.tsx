@@ -92,8 +92,8 @@ export default function SettingsPage() {
   )
 
   return (
-    <main className="min-h-screen bg-base text-fg pb-24">
-      <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
         <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
         <h1 className="text-sm font-semibold text-fg-muted">Settings</h1>
         <div className="w-16" />
@@ -132,7 +132,7 @@ export default function SettingsPage() {
               <p className={`text-sm ${message.ok ? 'text-accent-lt' : 'text-rose-400'}`}>{message.text}</p>
             )}
             <button onClick={saveProfile} disabled={saving}
-              className="w-full py-3 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">
+              className="w-full py-3 bg-accent hover:bg-accent-dk active:scale-[0.98] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
               {saving ? 'Saving…' : 'Save profile'}
             </button>
           </div>

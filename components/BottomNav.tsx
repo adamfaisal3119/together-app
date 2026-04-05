@@ -5,9 +5,15 @@ import { usePathname } from 'next/navigation'
 
 function HomeIcon({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-      <polyline points="9,22 9,12 15,12 15,22" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      {active ? (
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+      ) : (
+        <>
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <polyline points="9,22 9,12 15,12 15,22" />
+        </>
+      )}
     </svg>
   )
 }
@@ -25,7 +31,7 @@ function GroupsIcon({ active }: { active: boolean }) {
 
 function FriendsIcon({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke={active ? 'none' : 'currentColor'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
     </svg>
   )
@@ -52,25 +58,36 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-surface border-t border-edge-dim z-40 backdrop-blur-sm"
+      className="fixed bottom-0 left-0 right-0 z-40"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="flex items-center justify-around px-2 py-1">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
-          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-col items-center gap-1 px-5 py-2 rounded-xl transition-colors ${
-                active ? 'text-accent' : 'text-fg-faint hover:text-fg-muted'
-              }`}
-            >
-              <Icon active={active} />
-              <span className="text-xs font-medium">{label}</span>
-            </Link>
-          )
-        })}
+      {/* Elevated bar with blur + border + shadow */}
+      <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">
+        <div className="flex items-center justify-around px-2 py-1 max-w-lg mx-auto">
+          {NAV_ITEMS.map(({ href, label, Icon }) => {
+            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex flex-col items-center gap-1 px-5 py-2.5 rounded-xl transition-all ${
+                  active
+                    ? 'text-accent'
+                    : 'text-fg-faint hover:text-fg-muted active:scale-95'
+                }`}
+              >
+                {/* Active pill indicator */}
+                <div className="relative">
+                  <Icon active={active} />
+                  {active && (
+                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
+                  )}
+                </div>
+                <span className={`text-[11px] font-medium ${active ? 'font-semibold' : ''}`}>{label}</span>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </nav>
   )

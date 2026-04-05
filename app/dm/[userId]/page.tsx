@@ -84,15 +84,29 @@ export default function DMPage() {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return
-    setSending(true)
     const content = newMessage.trim()
     setNewMessage('')
-    await supabase.from('direct_messages').insert({
-      sender_id: user.id,
-      receiver_id: friendId,
+
+    // Optimistic insert
+    const tempId = `temp-${Date.now()}`
+    setMessages(prev => [...prev, {
+      id: tempId,
       content,
-    })
+      created_at: new Date().toISOString(),
+      sender_id: user.id,
+    }])
+
+    setSending(true)
+    const { data } = await supabase
+      .from('direct_messages')
+      .insert({ sender_id: user.id, receiver_id: friendId, content })
+      .select('id, created_at')
+      .single()
     setSending(false)
+
+    if (data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -115,7 +129,7 @@ export default function DMPage() {
   )
 
   return (
-    <main className="min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0">
+    <main className="min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0 page-enter">
       <nav className="border-b border-edge-dim px-5 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => router.push('/friends')}

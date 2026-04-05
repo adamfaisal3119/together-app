@@ -43,8 +43,23 @@ export default function FriendsPage() {
   const [searchError, setSearchError] = useState('')
   const [searching, setSearching] = useState(false)
   const [tab, setTab] = useState<'friends' | 'requests'>('friends')
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
+
+  const fetchUnreadCounts = useMemo(() => async (userId: string, friendIds: string[]) => {
+    if (friendIds.length === 0) return
+    const { data } = await supabase
+      .from('direct_messages')
+      .select('sender_id')
+      .eq('receiver_id', userId)
+      .eq('read', false)
+      .in('sender_id', friendIds)
+    if (!data) return
+    const counts: Record<string, number> = {}
+    data.forEach(m => { counts[m.sender_id] = (counts[m.sender_id] || 0) + 1 })
+    setUnreadCounts(counts)
+  }, [supabase])
 
   const fetchFriendships = useMemo(() => async (userId: string) => {
     const { data } = await supabase
@@ -57,10 +72,12 @@ export default function FriendsPage() {
       const { data: profile } = await supabase.from('profiles').select('id, full_name, username').eq('id', friendId).single()
       return { ...f, friend: profile as Profile }
     }))
-    setFriends(enriched.filter(f => f.status === 'accepted'))
+    const accepted = enriched.filter(f => f.status === 'accepted')
+    setFriends(accepted)
     setPending(enriched.filter(f => f.status === 'pending' && f.addressee_id === userId))
     setSent(enriched.filter(f => f.status === 'pending' && f.requester_id === userId))
-  }, [supabase])
+    await fetchUnreadCounts(userId, accepted.map(f => f.friend.id))
+  }, [supabase, fetchUnreadCounts])
 
   useEffect(() => {
     const load = async () => {
@@ -114,8 +131,8 @@ export default function FriendsPage() {
   )
 
   return (
-    <main className="min-h-screen bg-base text-fg pb-24">
-      <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
         <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
         <h1 className="text-sm font-semibold text-fg-muted">Friends</h1>
         <div className="w-16" />
@@ -196,8 +213,13 @@ export default function FriendsPage() {
                     </div>
                   </div>
                   <button onClick={() => router.push(`/dm/${f.friend.id}`)}
-                    className="px-3 py-1.5 bg-elevated hover:bg-accent hover:text-white text-fg-muted rounded-xl text-xs font-semibold transition-colors">
+                    className="relative px-3 py-1.5 bg-elevated hover:bg-accent hover:text-white active:scale-95 text-fg-muted rounded-xl text-xs font-semibold transition-all">
                     Message
+                    {unreadCounts[f.friend.id] > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                        {unreadCounts[f.friend.id] > 9 ? '9+' : unreadCounts[f.friend.id]}
+                      </span>
+                    )}
                   </button>
                 </div>
               ))}

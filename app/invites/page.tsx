@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 interface RSVP {
   id: string
@@ -34,7 +35,7 @@ export default function InvitesPage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [responding, setResponding] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
   const fetchRsvps = async (userId: string) => {
@@ -102,7 +103,7 @@ export default function InvitesPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase, router])
 
   const respond = async (rsvp: RSVP, status: 'accepted' | 'declined') => {
     if (!user || !rsvp.events) return
@@ -114,7 +115,6 @@ export default function InvitesPage() {
       .eq('id', rsvp.id)
 
     if (!error && status === 'accepted') {
-      // Add to personal calendar
       await supabase.from('personal_events').insert({
         user_id: user.id,
         title: rsvp.events.title,
@@ -133,9 +133,7 @@ export default function InvitesPage() {
   }
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString([], {
-      weekday: 'long', month: 'long', day: 'numeric'
-    })
+    new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
 
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -145,72 +143,71 @@ export default function InvitesPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+        <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+          <span className="text-lg font-bold text-accent-lt">Together</span>
+          <span className="text-sm font-semibold text-fg-muted">Invites</span>
+          <div className="w-16" />
+        </nav>
+        <div className="max-w-2xl mx-auto px-5 py-8 space-y-3">
+          {[1, 2].map(i => (
+            <div key={i} className="bg-surface rounded-2xl border border-edge-dim p-6 animate-pulse">
+              <div className="h-5 w-1/2 bg-elevated rounded mb-2" />
+              <div className="h-4 w-1/3 bg-elevated rounded" />
+            </div>
+          ))}
+        </div>
+        <BottomNav />
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <nav className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="text-violet-400 hover:text-violet-300 font-bold text-xl"
-        >
-          ← Together
-        </button>
-        <h1 className="text-lg font-semibold">📬 Invites</h1>
-        <div className="w-20" />
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+        <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
+        <h1 className="text-sm font-semibold text-fg-muted">Invites</h1>
+        <div className="w-16" />
       </nav>
 
-      <div className="max-w-2xl mx-auto px-6 py-8">
+      <div className="max-w-2xl mx-auto px-5 py-8 space-y-8">
 
-        {/* Pending invites */}
-        <div className="mb-10">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+        {/* Pending */}
+        <div>
+          <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3 px-1">
             Pending ({pending.length})
-          </h2>
+          </p>
 
           {pending.length === 0 ? (
-            <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
+            <div className="text-center py-14 bg-surface rounded-2xl border border-edge-dim">
               <p className="text-4xl mb-3">📬</p>
-              <p className="text-gray-400">No pending invites</p>
-              <p className="text-gray-600 text-sm mt-1">You are all caught up!</p>
+              <p className="text-fg-muted font-medium">No pending invites</p>
+              <p className="text-fg-faint text-sm mt-1">You&apos;re all caught up!</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {pending.map(rsvp => {
                 if (!rsvp.events) return null
                 const emoji = EVENT_TYPES[rsvp.events.event_type] || '📌'
                 return (
-                  <div
-                    key={rsvp.id}
-                    className="bg-gray-900 rounded-2xl p-6 border border-violet-500"
-                  >
+                  <div key={rsvp.id} className="bg-surface rounded-2xl p-5 border border-accent/60">
                     <div className="flex items-start gap-3 mb-4">
-                      <span className="text-2xl">{emoji}</span>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold mb-0.5">{rsvp.events.title}</h3>
-                        <p className="text-violet-400 text-sm font-medium">
+                      <span className="text-2xl shrink-0">{emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-fg mb-0.5">{rsvp.events.title}</h3>
+                        <p className="text-accent-lt text-sm font-medium">
                           {rsvp.events.groups?.name || 'Unknown group'}
                         </p>
-                        <p className="text-gray-300 text-sm mt-2">
-                          📅 {formatDate(rsvp.events.start_time)}
-                        </p>
-                        <p className="text-gray-300 text-sm">
+                        <p className="text-fg-muted text-sm mt-2">📅 {formatDate(rsvp.events.start_time)}</p>
+                        <p className="text-fg-muted text-sm">
                           🕐 {formatTime(rsvp.events.start_time)}
                           {rsvp.events.end_time && ` – ${formatTime(rsvp.events.end_time)}`}
                         </p>
                         {rsvp.events.location && (
-                          <p className="text-gray-300 text-sm">
-                            📍 {rsvp.events.location}
-                          </p>
+                          <p className="text-fg-muted text-sm">📍 {rsvp.events.location}</p>
                         )}
                         {rsvp.events.description && (
-                          <p className="text-gray-400 text-sm mt-2">
-                            {rsvp.events.description}
-                          </p>
+                          <p className="text-fg-faint text-sm mt-2">{rsvp.events.description}</p>
                         )}
                       </div>
                     </div>
@@ -219,16 +216,16 @@ export default function InvitesPage() {
                       <button
                         onClick={() => respond(rsvp, 'accepted')}
                         disabled={responding === rsvp.id}
-                        className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-semibold transition-colors disabled:opacity-50"
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
                       >
-                        {responding === rsvp.id ? '...' : '✅ Accept'}
+                        {responding === rsvp.id ? '…' : '✅ Accept'}
                       </button>
                       <button
                         onClick={() => respond(rsvp, 'declined')}
                         disabled={responding === rsvp.id}
-                        className="flex-1 py-3 bg-red-900/40 hover:bg-red-900/60 text-red-400 border border-red-800 rounded-xl font-semibold transition-colors disabled:opacity-50"
+                        className="flex-1 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
                       >
-                        {responding === rsvp.id ? '...' : '❌ Decline'}
+                        {responding === rsvp.id ? '…' : '❌ Decline'}
                       </button>
                     </div>
                   </div>
@@ -238,34 +235,36 @@ export default function InvitesPage() {
           )}
         </div>
 
-        {/* Past responses */}
+        {/* Already responded */}
         {responded.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
+            <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3 px-1">
               Already responded
-            </h2>
-            <div className="space-y-3">
-              {responded.map(rsvp => {
+            </p>
+            <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
+              {responded.map((rsvp, i) => {
                 if (!rsvp.events) return null
                 const emoji = EVENT_TYPES[rsvp.events.event_type] || '📌'
                 return (
                   <div
                     key={rsvp.id}
-                    className="bg-gray-900 rounded-2xl p-4 border border-gray-800 flex items-center justify-between opacity-70"
+                    className={`flex items-center justify-between px-5 py-4 opacity-60 ${
+                      i < responded.length - 1 ? 'border-b border-edge-dim' : ''
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span>{emoji}</span>
-                      <div>
-                        <p className="font-medium">{rsvp.events.title}</p>
-                        <p className="text-gray-500 text-xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-lg shrink-0">{emoji}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-fg text-sm truncate">{rsvp.events.title}</p>
+                        <p className="text-fg-faint text-xs truncate">
                           {rsvp.events.groups?.name} · {formatDate(rsvp.events.start_time)}
                         </p>
                       </div>
                     </div>
-                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium shrink-0 ml-3 ${
                       rsvp.status === 'accepted'
-                        ? 'bg-green-900/60 text-green-300'
-                        : 'bg-red-900/60 text-red-300'
+                        ? 'bg-emerald-500/20 text-emerald-500'
+                        : 'bg-rose-500/20 text-rose-400'
                     }`}>
                       {rsvp.status === 'accepted' ? '✅ Accepted' : '❌ Declined'}
                     </span>
@@ -276,6 +275,7 @@ export default function InvitesPage() {
           </div>
         )}
       </div>
+      <BottomNav />
     </main>
   )
 }

@@ -102,12 +102,12 @@ export default function GroupsPage() {
   )
 
   return (
-    <main className="min-h-screen bg-base text-fg pb-24">
-      <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
+      <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
         <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="px-4 py-2 bg-accent hover:bg-accent-dk text-white rounded-xl text-sm font-semibold transition-colors"
+          className="px-4 py-2 bg-accent hover:bg-accent-dk active:scale-95 text-white rounded-xl text-sm font-semibold transition-all"
         >
           + New group
         </button>
@@ -175,7 +175,7 @@ export default function GroupsPage() {
               <div
                 key={group.id}
                 onClick={() => router.push(`/groups/${group.id}`)}
-                className="bg-surface rounded-2xl p-5 border border-edge-dim hover:border-accent transition-colors cursor-pointer flex items-center gap-4"
+                className="card-hover bg-surface rounded-2xl p-5 border border-edge-dim hover:border-accent/60 cursor-pointer flex items-center gap-4"
               >
                 <div className="w-10 h-10 rounded-xl bg-accent-bg border border-accent/30 flex items-center justify-center text-lg shrink-0">
                   👥

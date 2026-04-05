@@ -1,24 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { THEME_PRESETS, type ThemeAccent } from '@/lib/themes'
-import { applyAccent, useTheme } from '@/lib/theme-context'
+import { THEME_PRESETS, BG_PRESETS, type ThemeAccent, type BgStyle } from '@/lib/themes'
+import { applyAccent, applyBg, useTheme } from '@/lib/theme-context'
 
 type Step = 'profile' | 'theme'
 
 export default function OnboardingPage() {
-  const { accent, setAccent } = useTheme()
+  const { accent, setAccent, bg, setBg } = useTheme()
   const [step, setStep] = useState<Step>('profile')
   const [selected, setSelected] = useState<ThemeAccent>(accent)
+  const [selectedBg, setSelectedBg] = useState<BgStyle>(bg)
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
   useEffect(() => {
@@ -42,11 +43,18 @@ export default function OnboardingPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase, router])
 
   const handleSelect = (id: ThemeAccent) => {
     setSelected(id)
     applyAccent(id)
+    applyBg(selectedBg)
+  }
+
+  const handleBg = (id: BgStyle) => {
+    setSelectedBg(id)
+    applyBg(id)
+    applyAccent(selected)
   }
 
   const saveProfile = async () => {
@@ -86,6 +94,7 @@ export default function OnboardingPage() {
   const saveThemeAndFinish = async () => {
     setSaving(true)
     setAccent(selected)
+    setBg(selectedBg)
 
     try {
       await supabase.from('profiles').upsert({
@@ -181,42 +190,59 @@ export default function OnboardingPage() {
         {/* STEP 2 — Theme */}
         {step === 'theme' && (
           <>
-            <div className="text-center mb-10">
-              <h1 className="text-3xl font-bold text-fg tracking-tight">Pick your colour</h1>
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold text-fg tracking-tight">Make it yours</h1>
               <p className="text-fg-muted mt-2 text-sm">
-                Choose an accent colour for your experience. You can change it later in settings.
+                Pick a background and accent colour. Change anytime in Settings.
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-8">
-              {THEME_PRESETS.map(preset => (
-                <button
-                  key={preset.id}
-                  onClick={() => handleSelect(preset.id)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all ${
-                    selected === preset.id
-                      ? 'border-accent bg-accent-bg'
-                      : 'border-edge-dim bg-surface hover:border-edge'
-                  }`}
-                >
-                  <span
-                    className="w-10 h-10 rounded-full"
-                    style={{ backgroundColor: preset.swatch }}
-                  />
-                  <span className={`text-xs font-medium ${
-                    selected === preset.id ? 'text-accent-lt' : 'text-fg-muted'
-                  }`}>
-                    {preset.name}
-                  </span>
-                </button>
-              ))}
+            {/* Background picker */}
+            <div className="bg-surface rounded-2xl border border-edge-dim p-5 mb-4">
+              <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3">Background</p>
+              <div className="grid grid-cols-3 gap-2">
+                {BG_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleBg(preset.id)}
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all text-left ${
+                      selectedBg === preset.id
+                        ? 'border-accent bg-accent-bg'
+                        : 'border-edge-dim hover:border-edge'
+                    }`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full shrink-0 border border-edge-dim"
+                      style={{ backgroundColor: preset.swatch }}
+                    />
+                    <span className="text-xs font-medium text-fg-muted truncate">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Accent picker */}
+            <div className="bg-surface rounded-2xl border border-edge-dim p-5 mb-5">
+              <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3">Accent colour</p>
+              <div className="grid grid-cols-6 gap-2">
+                {THEME_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleSelect(preset.id)}
+                    className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all ${
+                      selected === preset.id ? 'border-accent bg-accent-bg' : 'border-transparent hover:border-edge'
+                    }`}
+                  >
+                    <span className="w-7 h-7 rounded-full" style={{ backgroundColor: preset.swatch }} />
+                    <span className="text-xs text-fg-faint">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Preview */}
-            <div className="bg-surface rounded-2xl border border-edge-dim p-5 mb-8">
-              <p className="text-xs text-fg-faint uppercase tracking-wider font-medium mb-3">
-                Preview
-              </p>
+            <div className="bg-surface rounded-2xl border border-edge-dim p-4 mb-6">
+              <p className="text-xs text-fg-faint uppercase tracking-wider font-medium mb-3">Preview</p>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-sm font-bold shrink-0">
                   {fullName[0]?.toUpperCase() || 'T'}
@@ -243,7 +269,7 @@ export default function OnboardingPage() {
                 disabled={saving}
                 className="flex-1 py-3 rounded-xl bg-accent hover:bg-accent-dk text-white font-semibold transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Get started 🎉'}
+                {saving ? 'Saving…' : 'Get started 🎉'}
               </button>
             </div>
           </>

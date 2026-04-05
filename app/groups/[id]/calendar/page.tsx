@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
@@ -14,6 +14,26 @@ interface Event {
   location: string | null
   created_by: string
   is_invite: boolean
+}
+
+interface RsvpCounts {
+  accepted: number
+  declined: number
+  pending: number
+}
+
+interface Reaction {
+  emoji: string
+  count: number
+  reacted: boolean
+}
+
+interface Comment {
+  id: string
+  content: string
+  created_at: string
+  user_id: string
+  profiles: { full_name: string | null; username: string | null } | null
 }
 
 interface PersonalEvent {
@@ -53,6 +73,8 @@ const EVENT_TYPES = [
 const getEventType = (value: string) =>
   EVENT_TYPES.find(t => t.value === value) || EVENT_TYPES[0]
 
+const REACTION_EMOJIS = ['👍', '❤️', '🎉', '😮', '😂']
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -63,6 +85,14 @@ export default function CalendarPage() {
   const [groupName, setGroupName] = useState('')
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [loading, setLoading] = useState(true)
+
+  // RSVP, reactions, comments per event
+  const [rsvpCounts, setRsvpCounts] = useState<Record<string, RsvpCounts>>({})
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({})
+  const [comments, setComments] = useState<Record<string, Comment[]>>({})
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  const [newComment, setNewComment] = useState('')
+  const [commentSending, setCommentSending] = useState(false)
 
   // Find a time state
   const [searchDate, setSearchDate] = useState('')
@@ -83,7 +113,7 @@ export default function CalendarPage() {
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState('')
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
@@ -97,7 +127,7 @@ export default function CalendarPage() {
     if (data) setEvents(data as Event[])
   }
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
     const { data } = await supabase
       .from('group_members')
       .select('user_id, profiles(full_name)')
@@ -112,6 +142,119 @@ export default function CalendarPage() {
       }))
       setMembers(mapped)
     }
+  }, [supabase, groupId])
+
+  const fetchEventExtras = useCallback(async (eventIds: string[], userId: string) => {
+    if (eventIds.length === 0) return
+
+    // RSVP counts per event
+    const { data: rsvpData } = await supabase
+      .from('event_rsvps')
+      .select('event_id, status')
+      .in('event_id', eventIds)
+
+    if (rsvpData) {
+      const counts: Record<string, RsvpCounts> = {}
+      eventIds.forEach(id => { counts[id] = { accepted: 0, declined: 0, pending: 0 } })
+      rsvpData.forEach((r: { event_id: string; status: string }) => {
+        if (counts[r.event_id]) {
+          if (r.status === 'accepted') counts[r.event_id].accepted++
+          else if (r.status === 'declined') counts[r.event_id].declined++
+          else counts[r.event_id].pending++
+        }
+      })
+      setRsvpCounts(counts)
+    }
+
+    // Reactions per event
+    const { data: reactionData } = await supabase
+      .from('event_reactions')
+      .select('event_id, emoji, user_id')
+      .in('event_id', eventIds)
+
+    if (reactionData) {
+      const reactionMap: Record<string, Reaction[]> = {}
+      eventIds.forEach(id => { reactionMap[id] = [] })
+      // Group by event → emoji
+      const grouped: Record<string, Record<string, { count: number; reacted: boolean }>> = {}
+      reactionData.forEach((r: { event_id: string; emoji: string; user_id: string }) => {
+        if (!grouped[r.event_id]) grouped[r.event_id] = {}
+        if (!grouped[r.event_id][r.emoji]) grouped[r.event_id][r.emoji] = { count: 0, reacted: false }
+        grouped[r.event_id][r.emoji].count++
+        if (r.user_id === userId) grouped[r.event_id][r.emoji].reacted = true
+      })
+      Object.entries(grouped).forEach(([eventId, emojis]) => {
+        reactionMap[eventId] = Object.entries(emojis).map(([emoji, d]) => ({ emoji, count: d.count, reacted: d.reacted }))
+      })
+      setReactions(reactionMap)
+    }
+
+    // Comments per event
+    const { data: commentData } = await supabase
+      .from('event_comments')
+      .select('id, event_id, content, created_at, user_id, profiles(full_name, username)')
+      .in('event_id', eventIds)
+      .order('created_at', { ascending: true })
+
+    if (commentData) {
+      const commentMap: Record<string, Comment[]> = {}
+      eventIds.forEach(id => { commentMap[id] = [] })
+      commentData.forEach((c: {
+        id: string; event_id: string; content: string; created_at: string; user_id: string
+        profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
+      }) => {
+        const profile = Array.isArray(c.profiles) ? c.profiles[0] ?? null : c.profiles
+        if (commentMap[c.event_id]) {
+          commentMap[c.event_id].push({ id: c.id, content: c.content, created_at: c.created_at, user_id: c.user_id, profiles: profile })
+        }
+      })
+      setComments(commentMap)
+    }
+  }, [supabase])
+
+  const toggleReaction = async (eventId: string, emoji: string) => {
+    if (!user) return
+    const existing = reactions[eventId]?.find(r => r.emoji === emoji && r.reacted)
+    if (existing) {
+      await supabase.from('event_reactions').delete()
+        .eq('event_id', eventId).eq('user_id', user.id).eq('emoji', emoji)
+    } else {
+      await supabase.from('event_reactions').insert({ event_id: eventId, user_id: user.id, emoji })
+    }
+    // Optimistic update
+    setReactions(prev => {
+      const eventReactions = [...(prev[eventId] || [])]
+      const idx = eventReactions.findIndex(r => r.emoji === emoji)
+      if (existing) {
+        if (idx >= 0) {
+          const updated = { ...eventReactions[idx], count: eventReactions[idx].count - 1, reacted: false }
+          if (updated.count <= 0) eventReactions.splice(idx, 1)
+          else eventReactions[idx] = updated
+        }
+      } else {
+        if (idx >= 0) eventReactions[idx] = { ...eventReactions[idx], count: eventReactions[idx].count + 1, reacted: true }
+        else eventReactions.push({ emoji, count: 1, reacted: true })
+      }
+      return { ...prev, [eventId]: eventReactions }
+    })
+  }
+
+  const submitComment = async (eventId: string) => {
+    if (!user || !newComment.trim()) return
+    setCommentSending(true)
+    const content = newComment.trim()
+    setNewComment('')
+    const { data } = await supabase.from('event_comments')
+      .insert({ event_id: eventId, user_id: user.id, content })
+      .select('id, content, created_at, user_id')
+      .single()
+    if (data) {
+      setComments(prev => ({
+        ...prev,
+        [eventId]: [...(prev[eventId] || []), { ...data, profiles: null }]
+      }))
+    }
+    setCommentSending(false)
   }
 
   useEffect(() => {
@@ -127,12 +270,18 @@ export default function CalendarPage() {
         .single()
       if (groupData) setGroupName(groupData.name)
 
-      await fetchEvents()
+      const eventsRes = await supabase
+        .from('events').select('*').eq('group_id', groupId).order('start_time', { ascending: true })
+      const eventsData = eventsRes.data as Event[] | null
+      if (eventsData) {
+        setEvents(eventsData)
+        await fetchEventExtras(eventsData.map(e => e.id), user.id)
+      }
       await fetchMembers()
       setLoading(false)
     }
     load()
-  }, [groupId])
+  }, [groupId, supabase, router, fetchMembers, fetchEventExtras])
 
   // Core scheduling logic
   const findAvailableSlots = async () => {
@@ -321,7 +470,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <main className="min-h-screen bg-base text-fg">
+    <main className="min-h-screen bg-base text-fg page-enter">
       <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between">
         <button
           onClick={() => router.push(`/groups/${groupId}`)}
@@ -592,7 +741,7 @@ export default function CalendarPage() {
                 <button
                   onClick={() => setIsInvite(!isInvite)}
                   className={`w-12 h-6 rounded-full transition-colors relative ${
-                    isInvite ? 'bg-accent' : 'bg-gray-600'
+                    isInvite ? 'bg-accent' : 'bg-elevated border border-edge'
                   }`}
                 >
                   <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${
@@ -661,37 +810,112 @@ export default function CalendarPage() {
                     <div className="space-y-3">
                       {upcomingEvents.map(event => {
                         const type = getEventType(event.event_type)
+                        const rsvp = rsvpCounts[event.id]
+                        const eventReactions = reactions[event.id] || []
+                        const eventComments = comments[event.id] || []
+                        const isExpanded = expandedEventId === event.id
                         return (
-                          <div
-                            key={event.id}
-                            className="bg-surface rounded-2xl p-5 border border-edge-dim hover:border-accent transition-colors"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xl">{type.emoji}</span>
-                                  <h4 className="text-lg font-semibold">{event.title}</h4>
-                                  {event.is_invite && (
-                                    <span className="text-xs bg-violet-900/60 text-accent-lt px-2 py-0.5 rounded-full border border-violet-700">
-                                      Invite
-                                    </span>
-                                  )}
+                          <div key={event.id} className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
+                            {/* Main card */}
+                            <div className="p-5">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="text-xl">{type.emoji}</span>
+                                    <h4 className="text-[15px] font-semibold text-fg">{event.title}</h4>
+                                    {event.is_invite && (
+                                      <span className="text-xs bg-accent-bg text-accent-lt px-2 py-0.5 rounded-full border border-accent/30">
+                                        Invite
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-accent-lt text-sm font-medium">
+                                    {formatDate(event.start_time)} at {formatTime(event.start_time)}
+                                    {event.end_time && ` → ${formatTime(event.end_time)}`}
+                                  </p>
+                                  {event.location && <p className="text-fg-muted text-xs mt-1">📍 {event.location}</p>}
+                                  {event.description && <p className="text-fg-muted text-sm mt-2">{event.description}</p>}
                                 </div>
-                                <p className="text-accent-lt text-sm font-medium mb-1">
-                                  {formatDate(event.start_time)} at {formatTime(event.start_time)}
-                                  {event.end_time && ` → ${formatTime(event.end_time)}`}
-                                </p>
-                                {event.location && (
-                                  <p className="text-fg-muted text-sm">📍 {event.location}</p>
-                                )}
-                                {event.description && (
-                                  <p className="text-fg-muted text-sm mt-2">{event.description}</p>
-                                )}
+                                <span className="text-xs bg-elevated text-fg-muted px-3 py-1 rounded-full shrink-0 ml-3">{type.label}</span>
                               </div>
-                              <span className="text-xs bg-elevated text-fg-muted px-3 py-1 rounded-full">
-                                {type.label}
-                              </span>
+
+                              {/* RSVP counts */}
+                              {event.is_invite && rsvp && (
+                                <div className="flex gap-3 mb-3">
+                                  <span className="text-xs text-emerald-500 font-medium">✅ {rsvp.accepted} going</span>
+                                  <span className="text-xs text-fg-faint">·</span>
+                                  <span className="text-xs text-rose-400 font-medium">❌ {rsvp.declined} declined</span>
+                                  <span className="text-xs text-fg-faint">·</span>
+                                  <span className="text-xs text-fg-muted font-medium">⏳ {rsvp.pending} pending</span>
+                                </div>
+                              )}
+
+                              {/* Reaction bar */}
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {REACTION_EMOJIS.map(emoji => {
+                                  const r = eventReactions.find(x => x.emoji === emoji)
+                                  return (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => toggleReaction(event.id, emoji)}
+                                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all active:scale-90 ${
+                                        r?.reacted
+                                          ? 'bg-accent-bg border border-accent/40 text-fg'
+                                          : 'bg-elevated hover:bg-edge text-fg-muted'
+                                      }`}
+                                    >
+                                      <span>{emoji}</span>
+                                      {r && r.count > 0 && <span className="font-medium">{r.count}</span>}
+                                    </button>
+                                  )
+                                })}
+                                <button
+                                  onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                                  className="ml-auto flex items-center gap-1 text-xs text-fg-faint hover:text-fg transition-colors px-2 py-1"
+                                >
+                                  💬 {eventComments.length > 0 ? eventComments.length : ''} {isExpanded ? 'Hide' : 'Comment'}
+                                </button>
+                              </div>
                             </div>
+
+                            {/* Comments panel */}
+                            {isExpanded && (
+                              <div className="border-t border-edge-dim px-5 py-4 space-y-3">
+                                {eventComments.length === 0 && (
+                                  <p className="text-fg-faint text-xs text-center py-2">No comments yet — be first!</p>
+                                )}
+                                {eventComments.map(c => (
+                                  <div key={c.id} className="flex gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                                      {c.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs font-semibold text-fg mr-1.5">
+                                        {c.profiles?.full_name || c.profiles?.username || 'Unknown'}
+                                      </span>
+                                      <span className="text-xs text-fg-muted">{c.content}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex gap-2 pt-1">
+                                  <input
+                                    type="text"
+                                    value={expandedEventId === event.id ? newComment : ''}
+                                    onChange={e => setNewComment(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && submitComment(event.id)}
+                                    placeholder="Add a comment…"
+                                    className="flex-1 px-3 py-2 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-xs"
+                                  />
+                                  <button
+                                    onClick={() => submitComment(event.id)}
+                                    disabled={commentSending || !newComment.trim()}
+                                    className="px-3 py-2 bg-accent hover:bg-accent-dk text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                                  >
+                                    Send
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )
                       })}

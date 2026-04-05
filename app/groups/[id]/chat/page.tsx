@@ -90,11 +90,32 @@ export default function ChatPage() {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return
-    setSending(true)
     const content = newMessage.trim()
     setNewMessage('')
-    await supabase.from('messages').insert({ group_id: groupId, user_id: user.id, content })
+
+    // Optimistic insert
+    const tempId = `temp-${Date.now()}`
+    const optimistic: Message = {
+      id: tempId,
+      content,
+      created_at: new Date().toISOString(),
+      user_id: user.id,
+      profiles: null,
+    }
+    setMessages(prev => [...prev, optimistic])
+
+    setSending(true)
+    const { data } = await supabase
+      .from('messages')
+      .insert({ group_id: groupId, user_id: user.id, content })
+      .select('id, created_at')
+      .single()
     setSending(false)
+
+    // Replace temp message with real id
+    if (data) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
