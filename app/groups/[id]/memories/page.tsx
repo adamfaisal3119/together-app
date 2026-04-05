@@ -132,8 +132,19 @@ export default function MemoriesPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-base text-fg flex items-center justify-center">
-        <p className="text-fg-muted">Loading…</p>
+      <main className="min-h-screen bg-base">
+        <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+          <div className="h-4 w-20 bg-elevated animate-pulse rounded" />
+          <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
+          <div className="h-8 w-20 bg-elevated animate-pulse rounded-xl" />
+        </nav>
+        <div className="max-w-5xl mx-auto px-5 py-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="aspect-square rounded-2xl bg-elevated animate-pulse" />
+            ))}
+          </div>
+        </div>
       </main>
     )
   }

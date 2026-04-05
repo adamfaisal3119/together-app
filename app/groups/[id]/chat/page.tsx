@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface Message {
   id: string
@@ -24,6 +25,7 @@ export default function ChatPage() {
   const groupId = params.id as string
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // Load data
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -41,43 +43,46 @@ export default function ChatPage() {
         .order('created_at', { ascending: true })
 
       if (data) {
-        const mapped: Message[] = data.map((m: {
-          id: string
-          content: string
-          created_at: string
-          user_id: string
+        setMessages(data.map((m: {
+          id: string; content: string; created_at: string; user_id: string
           profiles: { full_name: string | null } | { full_name: string | null }[] | null
         }) => ({
-          id: m.id,
-          content: m.content,
-          created_at: m.created_at,
-          user_id: m.user_id,
+          id: m.id, content: m.content, created_at: m.created_at, user_id: m.user_id,
           profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
-        }))
-        setMessages(mapped)
+        })))
       }
+    }
+    load()
+  }, [groupId, supabase, router])
 
-      const channel = supabase
-        .channel(`chat-${groupId}-${Math.random()}`)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'messages',
-          filter: `group_id=eq.${groupId}`,
-        }, (payload) => {
-          setMessages(prev => [...prev, {
+  // Realtime subscription — separate effect so cleanup works correctly
+  useEffect(() => {
+    let channel: RealtimeChannel | null = null
+
+    channel = supabase
+      .channel(`group-chat-${groupId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+        filter: `group_id=eq.${groupId}`,
+      }, (payload) => {
+        setMessages(prev => {
+          // Deduplicate: ignore if we already have this message id
+          if (prev.some(m => m.id === payload.new.id)) return prev
+          return [...prev, {
             id: payload.new.id,
             content: payload.new.content,
             created_at: payload.new.created_at,
             user_id: payload.new.user_id,
             profiles: null,
-          }])
+          }]
         })
-        .subscribe()
+      })
+      .subscribe()
 
-      return () => { supabase.removeChannel(channel) }
+    return () => {
+      if (channel) supabase.removeChannel(channel)
     }
-
-    load()
-  }, [groupId, supabase, router])
+  }, [groupId, supabase])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -86,12 +91,9 @@ export default function ChatPage() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || sending) return
     setSending(true)
-    await supabase.from('messages').insert({
-      group_id: groupId,
-      user_id: user.id,
-      content: newMessage.trim(),
-    })
+    const content = newMessage.trim()
     setNewMessage('')
+    await supabase.from('messages').insert({ group_id: groupId, user_id: user.id, content })
     setSending(false)
   }
 
@@ -103,8 +105,8 @@ export default function ChatPage() {
     new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <main className="min-h-screen bg-base text-fg flex flex-col">
-      <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between shrink-0">
+    <main className="min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0">
+      <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between shrink-0">
         <button
           onClick={() => router.push(`/groups/${groupId}`)}
           className="text-accent-lt hover:text-fg font-semibold transition-colors"
@@ -115,7 +117,7 @@ export default function ChatPage() {
         <div className="w-24" />
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-20">
             <p className="text-4xl mb-3">💬</p>
@@ -134,9 +136,7 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                  isMe
-                    ? 'bg-accent text-white rounded-br-sm'
-                    : 'bg-elevated text-fg rounded-bl-sm'
+                  isMe ? 'bg-accent text-white rounded-br-sm' : 'bg-elevated text-fg rounded-bl-sm'
                 }`}>
                   {!isMe && (
                     <p className="text-accent-lt text-xs font-semibold mb-1">
@@ -153,7 +153,7 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-edge-dim px-6 py-4 shrink-0">
+      <div className="border-t border-edge-dim px-5 py-3 shrink-0">
         <div className="flex gap-3 items-end">
           <textarea
             value={newMessage}

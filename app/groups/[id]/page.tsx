@@ -94,8 +94,34 @@ export default function GroupPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-base text-fg flex items-center justify-center">
-        <p className="text-fg-muted">Loading…</p>
+      <main className="min-h-screen bg-base">
+        <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
+          <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
+          <div className="h-4 w-24 bg-elevated animate-pulse rounded" />
+          <div className="w-20" />
+        </nav>
+        <div className="max-w-4xl mx-auto px-5 py-8 space-y-4">
+          <div className="bg-surface rounded-2xl border border-edge-dim p-6">
+            <div className="h-6 w-1/3 bg-elevated animate-pulse rounded mb-2" />
+            <div className="h-4 w-1/2 bg-elevated animate-pulse rounded" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="bg-surface rounded-2xl border border-edge-dim p-6">
+                <div className="h-8 w-8 bg-elevated animate-pulse rounded-lg mx-auto mb-3" />
+                <div className="h-4 w-2/3 bg-elevated animate-pulse rounded mx-auto" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-surface rounded-2xl border border-edge-dim p-5">
+            {[1,2,3].map(i => (
+              <div key={i} className="flex items-center gap-3 py-3 border-b border-edge-dim last:border-0">
+                <div className="w-8 h-8 rounded-full bg-elevated animate-pulse shrink-0" />
+                <div className="h-4 w-1/3 bg-elevated animate-pulse rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     )
   }

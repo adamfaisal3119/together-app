@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/lib/theme-context'
-import { THEME_PRESETS } from '@/lib/themes'
+import { THEME_PRESETS, BG_PRESETS } from '@/lib/themes'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -12,16 +12,25 @@ export const metadata: Metadata = {
   description: 'Plan, chat, and make memories with the people you love',
 }
 
-// Inline script to apply saved accent before first paint (avoids flash)
+// Apply both accent and background vars before first paint to avoid flash
 const themeScript = `
   try {
+    var root = document.documentElement;
+    var accents = ${JSON.stringify(Object.fromEntries(THEME_PRESETS.map(p => [p.id, p.vars])))};
+    var bgs = ${JSON.stringify(Object.fromEntries(BG_PRESETS.map(p => [p.id, p.vars])))};
+
     var accent = localStorage.getItem('accent') || 'violet';
-    var themes = ${JSON.stringify(Object.fromEntries(THEME_PRESETS.map(p => [p.id, p.vars])))};
-    var vars = themes[accent];
-    if (vars) {
-      var root = document.documentElement;
-      Object.keys(vars).forEach(function(k) { root.style.setProperty(k, vars[k]); });
-    }
+    var bg = localStorage.getItem('bg') || 'dark';
+
+    var accentVars = accents[accent];
+    if (accentVars) Object.keys(accentVars).forEach(function(k) { root.style.setProperty(k, accentVars[k]); });
+
+    var bgVars = bgs[bg];
+    if (bgVars) Object.keys(bgVars).forEach(function(k) { root.style.setProperty(k, bgVars[k]); });
+
+    // On light backgrounds, use the accent colour itself as accent-lt so it's readable
+    var bgPreset = ${JSON.stringify(Object.fromEntries(BG_PRESETS.map(p => [p.id, p.dark])))};
+    if (bgPreset[bg] && accentVars) root.style.setProperty('--accent-lt', accentVars['--accent']);
   } catch(e) {}
 `
 

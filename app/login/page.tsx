@@ -33,7 +33,7 @@ export default function LoginPage() {
       if (error) {
         setMessage({ text: error.message, ok: false })
       } else {
-        router.push('/dashboard')
+        router.push('/onboarding')
       }
     }
 
@@ -112,6 +112,7 @@ export default function LoginPage() {
             {isSignUp ? 'Sign in' : 'Sign up'}
           </button>
         </p>
+
       </div>
     </main>
   )
