@@ -58,8 +58,9 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40"
+      className="fixed inset-x-0 bottom-0 z-50 pointer-events-auto"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      aria-label="Bottom navigation"
     >
       {/* Elevated bar with blur + border + shadow */}
       <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">

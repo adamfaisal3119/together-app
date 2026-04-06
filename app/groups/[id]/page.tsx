@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import BottomNav from '@/components/BottomNav'
 
 interface Group {
   id: string
@@ -203,6 +204,7 @@ export default function GroupPage() {
           {[1,2,3].map(i => <div key={i} className="bg-surface rounded-2xl border border-edge-dim p-6 h-28 animate-pulse" />)}
         </div>
       </div>
+      <BottomNav />
     </main>
   )
 
@@ -411,6 +413,7 @@ export default function GroupPage() {
         </div>
 
       </div>
+      <BottomNav />
     </main>
   )
 }
