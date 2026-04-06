@@ -124,26 +124,53 @@ export default function PollsPage() {
 
   const vote = async (pollId: string, optionId: string) => {
     if (!user || voting) return
+    
+    // Optimistic update: update UI immediately
+    setPolls(prevPolls => prevPolls.map(poll => {
+      if (poll.id !== pollId) return poll
+      
+      const existingVote = poll.options.find(o => o.voted)
+      const newOptions = poll.options.map(opt => {
+        if (opt.id === optionId) {
+          return { ...opt, voted: true, votes: opt.voted ? opt.votes : opt.votes + 1 }
+        }
+        if (existingVote?.id === opt.id && opt.id !== optionId) {
+          return { ...opt, voted: false, votes: Math.max(0, opt.votes - 1) }
+        }
+        return opt
+      })
+      
+      return {
+        ...poll,
+        options: newOptions,
+        total_votes: poll.total_votes + (existingVote ? 0 : 1)
+      }
+    }))
+    
     setVoting(optionId)
 
-    // Check if already voted on any option in this poll
-    const poll = polls.find(p => p.id === pollId)
-    const existingVote = poll?.options.find(o => o.voted)
+    // Sync to server in background
+    try {
+      const poll = polls.find(p => p.id === pollId)
+      const existingVote = poll?.options.find(o => o.voted)
 
-    if (existingVote) {
-      // Remove old vote
-      await supabase.from('group_poll_votes')
-        .delete()
-        .eq('option_id', existingVote.id)
-        .eq('user_id', user.id)
+      if (existingVote) {
+        await supabase.from('group_poll_votes')
+          .delete()
+          .eq('option_id', existingVote.id)
+          .eq('user_id', user.id)
+      }
+
+      if (!existingVote || existingVote.id !== optionId) {
+        await supabase.from('group_poll_votes').insert({ option_id: optionId, user_id: user.id })
+      }
+    } catch (error) {
+      console.error('Vote failed:', error)
+      // Revert on error by refetching
+      await fetchPolls(user.id)
+    } finally {
+      setVoting(null)
     }
-
-    if (!existingVote || existingVote.id !== optionId) {
-      await supabase.from('group_poll_votes').insert({ option_id: optionId, user_id: user.id })
-    }
-
-    await fetchPolls(user.id)
-    setVoting(null)
   }
 
   const formatDate = (iso: string) =>
