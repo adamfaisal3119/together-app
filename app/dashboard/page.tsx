@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import NotificationBell from '@/components/NotificationBell'
 import BottomNav from '@/components/BottomNav'
+import { UpcomingEventsFeed, RecentMemoriesFeed } from '@/components/DashboardFeeds'
 
 const STAT_CARDS = [
   {
@@ -55,38 +56,16 @@ export default async function Dashboard() {
 
   if (!profile?.username) redirect('/onboarding')
 
-  const [{ count: groupCount }, { count: friendCount }, { data: myGroupIds }, { data: upcomingEvents }, { data: recentMemories }] = await Promise.all([
+  const [{ count: groupCount }, { count: friendCount }, { data: myGroupIds }] = await Promise.all([
     supabase.from('group_members').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
     supabase.from('friendships').select('*', { count: 'exact', head: true })
       .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
       .eq('status', 'accepted'),
     supabase.from('group_members').select('group_id').eq('user_id', user.id),
-    supabase.from('events')
-      .select('id, title, event_type, start_time, location, groups(name, id)')
-      .gte('start_time', new Date().toISOString())
-      .order('start_time', { ascending: true })
-      .limit(5),
-    supabase.from('memories')
-      .select('id, caption, created_at, group_id, file_url, file_type, uploaded_by, groups(name, id)')
-      .order('created_at', { ascending: false })
-      .limit(4),
   ])
 
   // Filter to groups the user is a member of
   const memberGroupIds = new Set((myGroupIds || []).map((r: { group_id: string }) => r.group_id))
-
-  interface EventRow { id: string; title: string; event_type: string; start_time: string; location: string | null; groups: { name: string; id: string } | { name: string; id: string }[] | null }
-  const myUpcomingEvents = ((upcomingEvents || []) as EventRow[])
-    .filter(e => {
-      const g = Array.isArray(e.groups) ? e.groups[0] : e.groups
-      return g && memberGroupIds.has(g.id)
-    })
-    .slice(0, 3)
-
-  interface MemoryRow { id: string; caption: string | null; created_at: string; group_id: string; file_url: string; file_type: string; uploaded_by: string; groups: { name: string; id: string } | { name: string; id: string }[] | null }
-  const myRecentMemories = ((recentMemories || []) as MemoryRow[])
-    .filter(m => memberGroupIds.has(m.group_id))
-    .slice(0, 3)
 
   const displayName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const initials = profile?.full_name
@@ -153,61 +132,11 @@ export default async function Dashboard() {
           ))}
         </div>
 
-        {/* Upcoming events feed */}
-        {myUpcomingEvents.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3 px-1">Upcoming</p>
-            <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
-              {myUpcomingEvents.map((event, i) => {
-                const group = Array.isArray(event.groups) ? event.groups[0] : event.groups
-                const date = new Date(event.start_time)
-                const dateStr = date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                const EVENT_EMOJI: Record<string, string> = { general: '📌', date_night: '🌹', dinner: '🍕', hiking: '🏔️', movies: '🎬', party: '🎉', travel: '✈️', sports: '⚽', coffee: '☕', gaming: '🎮' }
-                return (
-                  <Link key={event.id} href={group ? `/groups/${group.id}/calendar` : '/calendar'}>
-                    <div className={`flex items-center gap-4 px-5 py-3.5 hover:bg-elevated transition-colors ${i < myUpcomingEvents.length - 1 ? 'border-b border-edge-dim' : ''}`}>
-                      <div className="w-10 h-10 rounded-xl bg-accent-bg border border-accent/20 flex items-center justify-center text-xl shrink-0">
-                        {EVENT_EMOJI[event.event_type] || '📌'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-fg truncate">{event.title}</p>
-                        <p className="text-xs text-fg-muted mt-0.5">{dateStr} at {timeStr}{group ? ` · ${group.name}` : ''}</p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Upcoming events feed - client component */}
+        <UpcomingEventsFeed memberGroupIds={memberGroupIds} />
 
-        {/* Recent memories feed */}
-        {myRecentMemories.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3 px-1">Recent memories</p>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              {myRecentMemories.map(mem => {
-                const group = Array.isArray(mem.groups) ? mem.groups[0] : mem.groups
-                return (
-                  <Link key={mem.id} href={group ? `/groups/${group.id}/memories` : '/groups'} className="shrink-0">
-                    <div className="w-28 bg-surface rounded-xl border border-edge-dim overflow-hidden">
-                      {mem.file_type === 'video' ? (
-                        <div className="w-28 h-28 bg-elevated flex items-center justify-center text-3xl">🎬</div>
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={mem.file_url} alt={mem.caption || ''} className="w-28 h-28 object-cover" />
-                      )}
-                      <div className="p-2">
-                        <p className="text-xs font-medium text-fg truncate">{group?.name || 'Group'}</p>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Recent memories feed - client component */}
+        <RecentMemoriesFeed memberGroupIds={memberGroupIds} />
 
         {/* Quick links */}
         <div>
