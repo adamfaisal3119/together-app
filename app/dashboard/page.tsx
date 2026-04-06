@@ -65,7 +65,7 @@ export default async function Dashboard() {
   ])
 
   // Filter to groups the user is a member of
-  const memberGroupIds = new Set((myGroupIds || []).map((r: { group_id: string }) => r.group_id))
+  const memberGroupIds = (myGroupIds || []).map((r: { group_id: string }) => r.group_id)
 
   const displayName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const initials = profile?.full_name

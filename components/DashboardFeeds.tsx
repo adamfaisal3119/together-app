@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -35,10 +35,11 @@ const EVENT_EMOJI: Record<string, string> = {
   gaming: '🎮',
 }
 
-export function UpcomingEventsFeed({ memberGroupIds }: { memberGroupIds: Set<string> }) {
+export function UpcomingEventsFeed({ memberGroupIds }: { memberGroupIds: string[] }) {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
+  const groupIdSet = useMemo(() => new Set(memberGroupIds), [memberGroupIds])
 
   useEffect(() => {
     const fetch = async () => {
@@ -50,13 +51,13 @@ export function UpcomingEventsFeed({ memberGroupIds }: { memberGroupIds: Set<str
         .limit(5)
 
       if (data) {
-        const filtered = (data as Event[]).filter(e => e.groups && memberGroupIds.has(e.groups.id)).slice(0, 3)
+        const filtered = (data as unknown as Event[]).filter(e => e.groups && groupIdSet.has(e.groups.id)).slice(0, 3)
         setEvents(filtered)
       }
       setLoading(false)
     }
     fetch()
-  }, [supabase, memberGroupIds])
+  }, [supabase, groupIdSet])
 
   if (loading) {
     return (
@@ -110,10 +111,11 @@ export function UpcomingEventsFeed({ memberGroupIds }: { memberGroupIds: Set<str
   )
 }
 
-export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: Set<string> }) {
+export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: string[] }) {
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
+  const groupIdSet = useMemo(() => new Set(memberGroupIds), [memberGroupIds])
 
   useEffect(() => {
     const fetch = async () => {
@@ -124,13 +126,13 @@ export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: Set<str
         .limit(4)
 
       if (data) {
-        const filtered = (data as Memory[]).filter(m => m.groups && memberGroupIds.has(m.groups.id)).slice(0, 3)
+        const filtered = (data as unknown as Memory[]).filter(m => m.groups && groupIdSet.has(m.groups.id)).slice(0, 3)
         setMemories(filtered)
       }
       setLoading(false)
     }
     fetch()
-  }, [supabase, memberGroupIds])
+  }, [supabase, groupIdSet])
 
   if (loading) {
     return (
