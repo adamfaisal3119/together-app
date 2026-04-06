@@ -9,7 +9,7 @@ alter table events add column if not exists is_invite boolean default true;
 alter table profiles add column if not exists avatar_url text;
 
 -- 2. Group Memories
-create table if not exists group_memories (
+create table if not exists memories (
   id          uuid primary key default gen_random_uuid(),
   group_id    uuid references groups(id) on delete cascade not null,
   user_id     uuid references auth.users(id) on delete cascade not null,
@@ -17,17 +17,17 @@ create table if not exists group_memories (
   caption     text,
   created_at  timestamptz default now()
 );
-alter table group_memories enable row level security;
-create policy "Group members can view memories" on group_memories
+alter table memories enable row level security;
+create policy "Group members can view memories" on memories
   for select using (
-    exists (select 1 from group_members where group_id = group_memories.group_id and user_id = auth.uid())
+    exists (select 1 from group_members where group_id = memories.group_id and user_id = auth.uid())
   );
-create policy "Group members can add memories" on group_memories
+create policy "Group members can add memories" on memories
   for insert with check (
     auth.uid() = user_id and
-    exists (select 1 from group_members where group_id = group_memories.group_id and user_id = auth.uid())
+    exists (select 1 from group_members where group_id = memories.group_id and user_id = auth.uid())
   );
-create policy "Memory owner can delete" on group_memories
+create policy "Memory owner can delete" on memories
   for delete using (auth.uid() = user_id);
 
 -- 3. Event Reactions
@@ -137,7 +137,7 @@ alter publication supabase_realtime add table event_reactions;
 alter publication supabase_realtime add table event_comments;
 alter publication supabase_realtime add table group_polls;
 alter publication supabase_realtime add table group_poll_votes;
-alter publication supabase_realtime add table group_memories;
+alter publication supabase_realtime add table memories;
 
 -- ============================================================
 -- Group delete policy (run this if groups table lacks it)

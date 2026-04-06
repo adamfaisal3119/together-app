@@ -66,8 +66,8 @@ export default async function Dashboard() {
       .gte('start_time', new Date().toISOString())
       .order('start_time', { ascending: true })
       .limit(5),
-    supabase.from('group_memories')
-      .select('id, caption, created_at, group_id, storage_path, groups(name, id), profiles(full_name, username)')
+    supabase.from('memories')
+      .select('id, caption, created_at, group_id, file_url, file_type, uploaded_by, groups(name, id)')
       .order('created_at', { ascending: false })
       .limit(4),
   ])
@@ -83,7 +83,7 @@ export default async function Dashboard() {
     })
     .slice(0, 3)
 
-  interface MemoryRow { id: string; caption: string | null; created_at: string; group_id: string; storage_path: string; groups: { name: string; id: string } | { name: string; id: string }[] | null; profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null }
+  interface MemoryRow { id: string; caption: string | null; created_at: string; group_id: string; file_url: string; file_type: string; uploaded_by: string; groups: { name: string; id: string } | { name: string; id: string }[] | null }
   const myRecentMemories = ((recentMemories || []) as MemoryRow[])
     .filter(m => memberGroupIds.has(m.group_id))
     .slice(0, 3)
@@ -189,20 +189,17 @@ export default async function Dashboard() {
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {myRecentMemories.map(mem => {
                 const group = Array.isArray(mem.groups) ? mem.groups[0] : mem.groups
-                const profile = Array.isArray(mem.profiles) ? mem.profiles[0] : mem.profiles
-                const uploaderName = profile?.full_name || profile?.username || 'Someone'
                 return (
                   <Link key={mem.id} href={group ? `/groups/${group.id}/memories` : '/groups'} className="shrink-0">
                     <div className="w-28 bg-surface rounded-xl border border-edge-dim overflow-hidden">
-                      {/\.(mp4|mov|webm|avi)$/i.test(mem.storage_path) ? (
+                      {mem.file_type === 'video' ? (
                         <div className="w-28 h-28 bg-elevated flex items-center justify-center text-3xl">🎬</div>
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={supabase.storage.from('memories').getPublicUrl(mem.storage_path).data.publicUrl} alt={mem.caption || ''} className="w-28 h-28 object-cover" />
+                        <img src={mem.file_url} alt={mem.caption || ''} className="w-28 h-28 object-cover" />
                       )}
                       <div className="p-2">
                         <p className="text-xs font-medium text-fg truncate">{group?.name || 'Group'}</p>
-                        <p className="text-xs text-fg-faint truncate">{uploaderName}</p>
                       </div>
                     </div>
                   </Link>
