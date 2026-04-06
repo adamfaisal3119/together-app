@@ -50,7 +50,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [profile, setProfile] = useState<{ full_name: string | null; username: string | null; avatar_url: string | null } | null>(null)
   const [statCounts, setStatCounts] = useState([0, 0])
-  const [memberGroupIds, setMemberGroupIds] = useState(new Set<string>())
+  const [memberGroupIds, setMemberGroupIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -87,7 +87,8 @@ export default function Dashboard() {
       ])
 
       setStatCounts([groupCount ?? 0, friendCount ?? 0])
-      setMemberGroupIds(new Set((myGroupIds || []).map((r: { group_id: string }) => r.group_id)))
+      const groupIds = (myGroupIds || []).map((r: { group_id: string }) => r.group_id)
+      setMemberGroupIds(groupIds)
       setLoading(false)
     }
 
