@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
@@ -38,7 +38,7 @@ export default function InvitesPage() {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  const fetchRsvps = async (userId: string) => {
+  const fetchRsvps = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('event_rsvps')
       .select(`
@@ -92,7 +92,7 @@ export default function InvitesPage() {
       })
       setRsvps(mapped)
     }
-  }
+  }, [supabase])
 
   useEffect(() => {
     const load = async () => {
@@ -103,7 +103,7 @@ export default function InvitesPage() {
       setLoading(false)
     }
     load()
-  }, [supabase, router])
+  }, [supabase, router, fetchRsvps])
 
   const respond = async (rsvp: RSVP, status: 'accepted' | 'declined') => {
     if (!user || !rsvp.events) return
@@ -115,7 +115,7 @@ export default function InvitesPage() {
       .eq('id', rsvp.id)
 
     if (!error && status === 'accepted') {
-      await supabase.from('personal_events').insert({
+      const { error: calErr } = await supabase.from('personal_events').insert({
         user_id: user.id,
         title: rsvp.events.title,
         description: rsvp.events.description,
@@ -124,8 +124,9 @@ export default function InvitesPage() {
           new Date(rsvp.events.start_time).getTime() + 2 * 60 * 60 * 1000
         ).toISOString(),
         show_as: 'busy',
-        recurring: 'none'
+        recurring: 'none',
       })
+      if (calErr) console.error('Failed to block calendar:', calErr.message)
     }
 
     await fetchRsvps(user.id)
