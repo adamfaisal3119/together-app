@@ -401,22 +401,6 @@ export default function CalendarPage() {
     if (error) {
       setFormError('Failed to create event: ' + error.message)
     } else {
-      // Block creator's personal calendar
-      if (user?.id) {
-        const eventStart = new Date(startTime).toISOString()
-        const eventEnd = endTime
-          ? new Date(endTime).toISOString()
-          : new Date(new Date(startTime).getTime() + 2 * 60 * 60 * 1000).toISOString()
-        await supabase.from('personal_events').insert({
-          user_id: user.id,
-          title: title.trim(),
-          description: description.trim() || null,
-          start_time: eventStart,
-          end_time: eventEnd,
-          show_as: 'busy',
-          recurring: 'none',
-        })
-      }
       setTitle('')
       setDescription('')
       setEventType('general')

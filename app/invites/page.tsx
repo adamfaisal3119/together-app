@@ -109,25 +109,11 @@ export default function InvitesPage() {
     if (!user || !rsvp.events) return
     setResponding(rsvp.id)
 
-    const { error } = await supabase
+    await supabase
       .from('event_rsvps')
       .update({ status })
       .eq('id', rsvp.id)
 
-    if (!error && status === 'accepted') {
-      const { error: calErr } = await supabase.from('personal_events').insert({
-        user_id: user.id,
-        title: rsvp.events.title,
-        description: rsvp.events.description,
-        start_time: rsvp.events.start_time,
-        end_time: rsvp.events.end_time || new Date(
-          new Date(rsvp.events.start_time).getTime() + 2 * 60 * 60 * 1000
-        ).toISOString(),
-        show_as: 'busy',
-        recurring: 'none',
-      })
-      if (calErr) console.error('Failed to block calendar:', calErr.message)
-    }
 
     await fetchRsvps(user.id)
     setResponding(null)
@@ -195,7 +181,7 @@ export default function InvitesPage() {
                     <div className="flex items-start gap-3 mb-4">
                       <span className="text-2xl shrink-0">{emoji}</span>
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-fg mb-0.5">{rsvp.events.title}</h3>
+                        <h3 className="text-[15px] font-bold text-fg mb-0.5">{rsvp.events.title}</h3>
                         <p className="text-accent-lt text-sm font-medium">
                           {rsvp.events.groups?.name || 'Unknown group'}
                         </p>
