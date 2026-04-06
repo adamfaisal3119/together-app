@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 interface PollOption {
   id: string
@@ -199,6 +200,7 @@ export default function PollsPage() {
       <div className="max-w-2xl mx-auto px-5 py-8 space-y-3">
         {[1,2].map(i => <div key={i} className="bg-surface rounded-2xl border border-edge-dim p-6 h-40 animate-pulse" />)}
       </div>
+      <BottomNav />
     </main>
   )
 
@@ -293,7 +295,7 @@ export default function PollsPage() {
           <div className="text-center py-20 bg-surface rounded-2xl border border-edge-dim">
             <p className="text-5xl mb-4">🗳️</p>
             <p className="text-fg font-medium">No polls yet</p>
-            <p className="text-fg-muted text-sm mt-1">Create one to get your group's opinion</p>
+              <p className="text-fg-muted text-sm mt-1">Create one to get your group&apos;s opinion</p>
           </div>
         )}
 
@@ -349,6 +351,7 @@ export default function PollsPage() {
           )
         })}
       </div>
+      <BottomNav />
     </main>
   )
 }

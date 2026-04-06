@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import BottomNav from '@/components/BottomNav'
 
 interface Event {
   id: string
@@ -451,7 +452,7 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-base">
+      <main className="min-h-screen bg-base pb-24">
         <nav className="border-b border-edge-dim px-5 py-3 flex items-center justify-between">
           <div className="h-4 w-20 bg-elevated animate-pulse rounded" />
           <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
@@ -465,12 +466,13 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
-      </main>
-    )
-  }
+      <BottomNav />
+    </main>
+  )
+}
 
   return (
-    <main className="min-h-screen bg-base text-fg page-enter">
+    <main className="min-h-screen bg-base text-fg pb-24 page-enter">
       <nav className="border-b border-edge-dim px-6 py-4 flex items-center justify-between">
         <button
           onClick={() => router.push(`/groups/${groupId}`)}
@@ -1025,6 +1027,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
+      <BottomNav />
     </main>
   )
 }
