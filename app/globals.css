@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Eliminate 300ms tap delay on mobile */
+* { touch-action: manipulation; }
+
 :root {
   /* Neutral zinc base */
   --bg-base:     #09090b;
