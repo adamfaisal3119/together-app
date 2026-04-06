@@ -63,27 +63,24 @@ export default function BottomNav() {
     >
       {/* Elevated bar with blur + border + shadow */}
       <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">
-        <div className="flex items-center justify-around px-2 py-1 max-w-lg mx-auto">
+        <div className="flex items-center justify-around px-1 max-w-lg mx-auto">
           {NAV_ITEMS.map(({ href, label, Icon }) => {
             const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center gap-1 px-5 py-2.5 rounded-xl transition-all ${
-                  active
-                    ? 'text-accent'
-                    : 'text-fg-faint hover:text-fg-muted active:scale-95'
+                className={`flex flex-col items-center gap-1 flex-1 py-3 rounded-xl transition-colors ${
+                  active ? 'text-accent' : 'text-fg-faint'
                 }`}
               >
-                {/* Active pill indicator */}
                 <div className="relative">
                   <Icon active={active} />
                   {active && (
                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
                   )}
                 </div>
-                <span className={`text-[11px] font-medium ${active ? 'font-semibold' : ''}`}>{label}</span>
+                <span className={`text-[11px] ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
               </Link>
             )
           })}

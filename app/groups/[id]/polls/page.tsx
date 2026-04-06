@@ -30,6 +30,7 @@ export default function PollsPage() {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
   const [voting, setVoting] = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
@@ -40,7 +41,7 @@ export default function PollsPage() {
   const fetchPolls = useCallback(async (userId: string) => {
     const { data: pollData } = await supabase
       .from('group_polls')
-      .select('id, question, created_at, user_id, profiles(full_name, username)')
+      .select('id, question, created_at, user_id')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
 
@@ -48,9 +49,10 @@ export default function PollsPage() {
 
     const enriched = await Promise.all(pollData.map(async (p: {
       id: string; question: string; created_at: string; user_id: string
-      profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
     }) => {
-      const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles
+      const { data: profileData } = await supabase
+        .from('profiles').select('full_name, username').eq('id', p.user_id).single()
+      const profile = profileData
 
       const { data: optionData } = await supabase
         .from('group_poll_options')
@@ -105,21 +107,32 @@ export default function PollsPage() {
     if (validOptions.length < 2) return
 
     setCreating(true)
-    const { data: poll } = await supabase
+    setCreateError('')
+    const { data: poll, error: pollErr } = await supabase
       .from('group_polls')
       .insert({ group_id: groupId, user_id: user.id, question: question.trim() })
       .select('id').single()
 
-    if (poll) {
-      await supabase.from('group_poll_options').insert(
-        validOptions.map(text => ({ poll_id: poll.id, text: text.trim() }))
-      )
-      setQuestion('')
-      setOptions(['', ''])
-      setShowCreate(false)
-      await fetchPolls(user.id)
+    if (pollErr || !poll) {
+      setCreateError('Failed to create poll: ' + (pollErr?.message || 'unknown error'))
+      setCreating(false)
+      return
     }
+
+    const { error: optErr } = await supabase.from('group_poll_options').insert(
+      validOptions.map(text => ({ poll_id: poll.id, text: text.trim() }))
+    )
+    if (optErr) {
+      setCreateError('Failed to add options: ' + optErr.message)
+      setCreating(false)
+      return
+    }
+
+    setQuestion('')
+    setOptions(['', ''])
+    setShowCreate(false)
     setCreating(false)
+    await fetchPolls(user.id)
   }
 
   const vote = async (pollId: string, optionId: string) => {
@@ -254,6 +267,9 @@ export default function PollsPage() {
                   </button>
                 )}
               </div>
+              {createError && (
+                <p className="text-rose-400 text-sm">{createError}</p>
+              )}
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={createPoll}

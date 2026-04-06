@@ -6,12 +6,11 @@ import { useRouter, useParams } from 'next/navigation'
 
 interface Memory {
   id: string
-  storage_path: string
+  file_url: string
+  file_type: string
   caption: string | null
   created_at: string
-  user_id: string
-  url: string
-  is_video: boolean
+  uploaded_by: string
   uploader_name: string
 }
 
@@ -32,31 +31,29 @@ export default function MemoriesPage() {
 
   const fetchMemories = useCallback(async () => {
     const { data } = await supabase
-      .from('group_memories')
-      .select('id, storage_path, caption, created_at, user_id, profiles(full_name, username)')
+      .from('memories')
+      .select('id, file_url, file_type, caption, created_at, uploaded_by')
       .eq('group_id', groupId)
       .order('created_at', { ascending: false })
 
     if (!data) return
 
-    const withUrls: Memory[] = data.map((m: {
-      id: string; storage_path: string; caption: string | null; created_at: string; user_id: string
-      profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
+    const withNames: Memory[] = await Promise.all(data.map(async (m: {
+      id: string; file_url: string; file_type: string; caption: string | null; created_at: string; uploaded_by: string
     }) => {
-      const { data: urlData } = supabase.storage.from('memories').getPublicUrl(m.storage_path)
-      const profile = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles
+      const { data: profile } = await supabase
+        .from('profiles').select('full_name, username').eq('id', m.uploaded_by).single()
       return {
         id: m.id,
-        storage_path: m.storage_path,
+        file_url: m.file_url,
+        file_type: m.file_type,
         caption: m.caption,
         created_at: m.created_at,
-        user_id: m.user_id,
-        url: urlData.publicUrl,
-        is_video: /\.(mp4|mov|webm|avi)$/i.test(m.storage_path),
+        uploaded_by: m.uploaded_by,
         uploader_name: profile?.full_name || profile?.username || 'Unknown',
       }
-    })
-    setMemories(withUrls)
+    }))
+    setMemories(withNames)
   }, [supabase, groupId])
 
   useEffect(() => {
@@ -85,10 +82,16 @@ export default function MemoriesPage() {
     const { error: uploadErr } = await supabase.storage.from('memories').upload(path, file)
     if (uploadErr) { setUploadError('Upload failed: ' + uploadErr.message); setUploading(false); return }
 
-    await supabase.from('group_memories').insert({
-      group_id: groupId, user_id: user.id,
-      storage_path: path, caption: caption.trim() || null,
+    const { data: urlData } = supabase.storage.from('memories').getPublicUrl(path)
+    const { error: insertErr } = await supabase.from('memories').insert({
+      group_id: groupId,
+      uploaded_by: user.id,
+      file_url: urlData.publicUrl,
+      file_type: file.type.startsWith('video') ? 'video' : 'image',
+      caption: caption.trim() || null,
     })
+    if (insertErr) { setUploadError('Failed to save: ' + insertErr.message); setUploading(false); return }
+
     setCaption('')
     if (fileRef.current) fileRef.current.value = ''
     await fetchMemories()
@@ -96,14 +99,15 @@ export default function MemoriesPage() {
   }
 
   const deleteMemory = async (memory: Memory) => {
-    await supabase.storage.from('memories').remove([memory.storage_path])
-    await supabase.from('group_memories').delete().eq('id', memory.id)
+    await supabase.from('memories').delete().eq('id', memory.id)
     setSelected(null)
     await fetchMemories()
   }
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const isVideo = (m: Memory) => m.file_type === 'video'
 
   if (loading) return (
     <main className="min-h-screen bg-base text-fg pb-24 page-enter">
@@ -142,7 +146,6 @@ export default function MemoriesPage() {
           <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3 text-rose-400 text-sm">{uploadError}</div>
         )}
 
-        {/* Caption input */}
         <div className="flex gap-2">
           <input type="text" placeholder="Caption for your next upload (optional)…" value={caption}
             onChange={e => setCaption(e.target.value)}
@@ -161,13 +164,13 @@ export default function MemoriesPage() {
             {memories.map(memory => (
               <button key={memory.id} onClick={() => setSelected(memory)}
                 className="relative aspect-square rounded-xl overflow-hidden bg-elevated group">
-                {memory.is_video ? (
-                  <video src={memory.url} className="w-full h-full object-cover" muted />
+                {isVideo(memory) ? (
+                  <video src={memory.file_url} className="w-full h-full object-cover" muted />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={memory.url} alt={memory.caption || ''} className="w-full h-full object-cover" />
+                  <img src={memory.file_url} alt={memory.caption || ''} className="w-full h-full object-cover" />
                 )}
-                {memory.is_video && (
+                {isVideo(memory) && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
                       <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
@@ -185,15 +188,14 @@ export default function MemoriesPage() {
         )}
       </div>
 
-      {/* Lightbox */}
       {selected && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex flex-col" onClick={() => setSelected(null)}>
           <div className="flex-1 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
-            {selected.is_video ? (
-              <video src={selected.url} controls autoPlay className="max-w-full max-h-full rounded-2xl" />
+            {isVideo(selected) ? (
+              <video src={selected.file_url} controls autoPlay className="max-w-full max-h-full rounded-2xl" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selected.url} alt={selected.caption || ''} className="max-w-full max-h-full rounded-2xl object-contain" />
+              <img src={selected.file_url} alt={selected.caption || ''} className="max-w-full max-h-full rounded-2xl object-contain" />
             )}
           </div>
           <div className="bg-surface/95 backdrop-blur-md border-t border-edge-dim px-5 py-5" onClick={e => e.stopPropagation()}>
@@ -205,7 +207,7 @@ export default function MemoriesPage() {
                   className="flex-1 py-2.5 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors">
                   Close
                 </button>
-                {selected.user_id === user?.id && (
+                {selected.uploaded_by === user?.id && (
                   <button onClick={() => deleteMemory(selected)}
                     className="flex-1 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors">
                     Delete

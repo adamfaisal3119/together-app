@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
   const avatarRef = useRef<HTMLInputElement>(null)
   const { accent, setAccent, bg, setBg } = useTheme()
   const [selectedAccent, setSelectedAccent] = useState<ThemeAccent>(accent)
@@ -96,6 +98,40 @@ export default function SettingsPage() {
     setMessage({ text: 'Photo updated!', ok: true })
     setAvatarUploading(false)
   }
+
+  const togglePush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setMessage({ text: 'Push notifications are not supported on this device.', ok: false })
+      return
+    }
+    setPushLoading(true)
+    const reg = await navigator.serviceWorker.ready
+    if (pushEnabled) {
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) })
+        await sub.unsubscribe()
+      }
+      setPushEnabled(false)
+    } else {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') { setMessage({ text: 'Permission denied — enable notifications in your browser settings.', ok: false }); setPushLoading(false); return }
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY })
+      const json = sub.toJSON()
+      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }) })
+      setPushEnabled(true)
+      setMessage({ text: 'Push notifications enabled!', ok: true })
+    }
+    setPushLoading(false)
+  }
+
+  // Check if already subscribed on mount
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    navigator.serviceWorker.ready.then(reg =>
+      reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub))
+    )
+  }, [])
 
   const getInitials = () => {
     if (fullName) return fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -211,6 +247,23 @@ export default function SettingsPage() {
                 <span className="text-xs text-fg-faint">{preset.name}</span>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Push notifications */}
+        <div className="bg-surface rounded-2xl p-5 border border-edge-dim">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-fg">Push notifications</h2>
+              <p className="text-fg-muted text-xs mt-0.5">Get notified about messages and invites</p>
+            </div>
+            <button
+              onClick={togglePush}
+              disabled={pushLoading}
+              className={`relative w-12 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${pushEnabled ? 'bg-accent' : 'bg-elevated'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
           </div>
         </div>
 
