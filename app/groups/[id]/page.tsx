@@ -68,6 +68,8 @@ export default function GroupPage() {
   const [pollCount, setPollCount] = useState(0)
   const [pastEventsCount, setPastEventsCount] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [showDanger, setShowDanger] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
@@ -161,6 +163,20 @@ export default function GroupPage() {
       setInviteUsername('')
       await loadMembers()
     }
+  }
+
+  const leaveGroup = async () => {
+    if (!user) return
+    setLeaving(true)
+    await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id)
+    router.push('/groups')
+  }
+
+  const deleteGroup = async () => {
+    if (!user) return
+    setLeaving(true)
+    await supabase.from('groups').delete().eq('id', groupId)
+    router.push('/groups')
   }
 
   const formatDate = (iso: string) =>
@@ -354,6 +370,42 @@ export default function GroupPage() {
               </div>
             )
           })}
+        </div>
+
+        {/* Leave / Delete group */}
+        <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
+          <button
+            onClick={() => setShowDanger(!showDanger)}
+            className="w-full flex items-center justify-between px-5 py-4 text-sm text-fg-muted hover:text-fg transition-colors"
+          >
+            <span className="font-medium">Group settings</span>
+            <svg className={`w-4 h-4 transition-transform ${showDanger ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showDanger && (
+            <div className="border-t border-edge-dim px-5 py-4 space-y-2">
+              {group?.created_by !== user?.id && (
+                <button
+                  onClick={leaveGroup}
+                  disabled={leaving}
+                  className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {leaving ? 'Leaving…' : 'Leave group'}
+                </button>
+              )}
+              {group?.created_by === user?.id && (
+                <button
+                  onClick={deleteGroup}
+                  disabled={leaving}
+                  className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {leaving ? 'Deleting…' : 'Delete group'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
       </div>
