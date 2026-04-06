@@ -168,14 +168,16 @@ export default function GroupPage() {
   const leaveGroup = async () => {
     if (!user) return
     setLeaving(true)
-    await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id)
+    const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id)
+    if (error) { alert('Failed to leave group: ' + error.message); setLeaving(false); return }
     router.push('/groups')
   }
 
   const deleteGroup = async () => {
     if (!user) return
     setLeaving(true)
-    await supabase.from('groups').delete().eq('id', groupId)
+    const { error } = await supabase.from('groups').delete().eq('id', groupId).eq('created_by', user.id)
+    if (error) { alert('Failed to delete group: ' + error.message); setLeaving(false); return }
     router.push('/groups')
   }
 
