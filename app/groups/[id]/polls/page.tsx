@@ -220,7 +220,7 @@ export default function PollsPage() {
         </button>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4">
+      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4 reveal">
 
         {/* Create form */}
         {showCreate && (

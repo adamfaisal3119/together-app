@@ -114,7 +114,7 @@ export default function GroupsPage() {
         </button>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 py-8">
+      <div className="max-w-2xl mx-auto px-5 py-8 reveal">
         <div className="mb-7">
           <h2 className="text-2xl font-bold text-fg tracking-tight">Your groups</h2>
           <p className="text-fg-muted mt-1 text-sm">Create a group and invite your people.</p>

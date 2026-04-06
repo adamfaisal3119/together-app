@@ -70,6 +70,7 @@ export default function BottomNav() {
               <Link
                 key={href}
                 href={href}
+                prefetch={true}
                 className={`flex flex-col items-center gap-1 flex-1 py-3 rounded-xl transition-colors ${
                   active ? 'text-accent' : 'text-fg-faint'
                 }`}

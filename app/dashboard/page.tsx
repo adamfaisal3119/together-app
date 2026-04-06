@@ -143,7 +143,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 pt-7 pb-4 space-y-7">
+      <div className="max-w-2xl mx-auto px-5 pt-7 pb-4 space-y-7 reveal">
 
         {/* Greeting */}
         <div>

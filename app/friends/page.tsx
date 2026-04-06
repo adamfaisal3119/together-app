@@ -139,7 +139,7 @@ export default function FriendsPage() {
         <div className="w-16" />
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 py-8 space-y-5">
+      <div className="max-w-2xl mx-auto px-5 py-8 space-y-5 reveal">
 
         {/* Search */}
         <div className="bg-surface rounded-2xl p-5 border border-edge-dim">

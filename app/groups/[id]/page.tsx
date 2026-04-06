@@ -219,7 +219,7 @@ export default function GroupPage() {
         <div className="w-20" />
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4">
+      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4 reveal">
 
         {/* Header card */}
         <div className="bg-surface rounded-2xl p-5 border border-edge-dim">

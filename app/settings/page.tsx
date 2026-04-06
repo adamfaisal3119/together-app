@@ -156,7 +156,7 @@ export default function SettingsPage() {
         <div className="w-16" />
       </nav>
 
-      <div className="max-w-lg mx-auto px-5 py-8 space-y-5">
+      <div className="max-w-lg mx-auto px-5 py-8 space-y-5 reveal">
 
         {/* Avatar */}
         <div className="flex flex-col items-center py-6">

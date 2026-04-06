@@ -141,7 +141,7 @@ export default function MemoriesPage() {
 
       <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleUpload} />
 
-      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4">
+      <div className="max-w-2xl mx-auto px-5 py-6 space-y-4 reveal">
         {uploadError && (
           <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3 text-rose-400 text-sm">{uploadError}</div>
         )}

@@ -157,7 +157,7 @@ export default function InvitesPage() {
         <div className="w-16" />
       </nav>
 
-      <div className="max-w-2xl mx-auto px-5 py-8 space-y-8">
+      <div className="max-w-2xl mx-auto px-5 py-8 space-y-8 reveal">
 
         {/* Pending */}
         <div>
