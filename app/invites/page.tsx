@@ -38,59 +38,55 @@ export default function InvitesPage() {
   const router = useRouter()
 
   const fetchRsvps = useCallback(async (userId: string) => {
-    const { data } = await supabase
+    // Fetch RSVPs without relying on a join (FK may not be in schema cache)
+    const { data: rsvpData } = await supabase
       .from('event_rsvps')
-      .select(`
-        id, status, event_id,
-        events (
-          id, title, description, event_type,
-          start_time, end_time, location, group_id,
-          groups ( name )
-        )
-      `)
+      .select('id, status, event_id')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
 
-    if (data) {
-      const mapped: RSVP[] = data.map((r: {
-        id: string
-        status: string
-        event_id: string
-        events: {
-          id: string
-          title: string
-          description: string | null
-          event_type: string
-          start_time: string
-          end_time: string | null
-          location: string | null
-          group_id: string
-          groups: { name: string } | { name: string }[] | null
-        } | {
-          id: string
-          title: string
-          description: string | null
-          event_type: string
-          start_time: string
-          end_time: string | null
-          location: string | null
-          group_id: string
-          groups: { name: string } | { name: string }[] | null
-        }[] | null
-      }) => {
-        const event = Array.isArray(r.events) ? r.events[0] : r.events
-        return {
-          id: r.id,
-          status: r.status,
-          event_id: r.event_id,
-          events: event ? {
-            ...event,
-            groups: Array.isArray(event.groups) ? event.groups[0] ?? null : event.groups
-          } : null
-        }
-      })
-      setRsvps(mapped)
-    }
+    if (!rsvpData || rsvpData.length === 0) { setRsvps([]); return }
+
+    const eventIds = rsvpData.map((r: { event_id: string }) => r.event_id)
+
+    const { data: eventsData } = await supabase
+      .from('events')
+      .select('id, title, description, event_type, start_time, end_time, location, group_id')
+      .in('id', eventIds)
+
+    const groupIds = [...new Set((eventsData || []).map((e: { group_id: string }) => e.group_id))]
+    const { data: groupsData } = await supabase
+      .from('groups')
+      .select('id, name')
+      .in('id', groupIds)
+
+    const eventsMap = Object.fromEntries((eventsData || []).map((e: {
+      id: string; title: string; description: string | null; event_type: string
+      start_time: string; end_time: string | null; location: string | null; group_id: string
+    }) => [e.id, e]))
+
+    const groupsMap = Object.fromEntries((groupsData || []).map((g: { id: string; name: string }) => [g.id, g]))
+
+    const mapped: RSVP[] = rsvpData.map((r: { id: string; status: string; event_id: string }) => {
+      const event = eventsMap[r.event_id]
+      return {
+        id: r.id,
+        status: r.status,
+        event_id: r.event_id,
+        events: event ? {
+          ...event,
+          groups: groupsMap[event.group_id] ?? null,
+        } : null,
+      }
+    })
+
+    // Sort: pending first, then by event start time
+    mapped.sort((a, b) => {
+      if (a.status === 'pending' && b.status !== 'pending') return -1
+      if (a.status !== 'pending' && b.status === 'pending') return 1
+      return new Date(a.events?.start_time ?? 0).getTime() - new Date(b.events?.start_time ?? 0).getTime()
+    })
+
+    setRsvps(mapped)
   }, [supabase])
 
   useEffect(() => {
@@ -105,7 +101,7 @@ export default function InvitesPage() {
   }, [supabase, router, fetchRsvps])
 
   const respond = async (rsvp: RSVP, status: 'accepted' | 'declined') => {
-    if (!user || !rsvp.events) return
+    if (!user) return
     setResponding(rsvp.id)
 
     await supabase
