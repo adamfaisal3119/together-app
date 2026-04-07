@@ -10,6 +10,7 @@ interface Profile {
   id: string
   full_name: string | null
   username: string | null
+  avatar_url: string | null
 }
 
 interface Friendship {
@@ -25,6 +26,16 @@ function Avatar({ profile, size = 'md' }: { profile: Profile; size?: 'sm' | 'md'
     ? profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : (profile.username?.[0]?.toUpperCase() || '?')
   const s = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
+  if (profile.avatar_url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={profile.avatar_url}
+        alt={profile.full_name || profile.username || 'Avatar'}
+        className={`${s} rounded-full object-cover shrink-0`}
+      />
+    )
+  }
   return (
     <div className={`${s} rounded-full bg-accent flex items-center justify-center text-white font-bold shrink-0`}>
       {initials}
@@ -82,7 +93,7 @@ export default function FriendsPage() {
     // Batch all profile lookups in one query
     const friendIds = data.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id)
     const { data: profiles } = await supabase
-      .from('profiles').select('id, full_name, username').in('id', friendIds)
+      .from('profiles').select('id, full_name, username, avatar_url').in('id', friendIds)
     const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
     const enriched = data.map(f => {
       const friendId = f.requester_id === userId ? f.addressee_id : f.requester_id
@@ -115,7 +126,7 @@ export default function FriendsPage() {
     setSearchError('')
     setSearchResult(null)
     const term = search.trim().toLowerCase().replace('@', '')
-    const { data } = await supabase.from('profiles').select('id, full_name, username').eq('username', term).single()
+    const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url').eq('username', term).single()
     if (!data) setSearchError('No user found with that username.')
     else if (data.id === user?.id) setSearchError("That's you!")
     else setSearchResult(data as Profile)

@@ -17,6 +17,7 @@ export default function DMPage() {
   const [newMessage, setNewMessage] = useState('')
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [friendName, setFriendName] = useState('')
+  const [friendAvatarUrl, setFriendAvatarUrl] = useState<string | null>(null)
   const [senderName, setSenderName] = useState('Someone')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -36,11 +37,14 @@ export default function DMPage() {
       setUser(user)
 
       const [{ data: profile }, { data: myProfile }] = await Promise.all([
-        supabase.from('profiles').select('full_name, username').eq('id', friendId).single(),
+        supabase.from('profiles').select('full_name, username, avatar_url').eq('id', friendId).single(),
         supabase.from('profiles').select('full_name, username').eq('id', user.id).single(),
       ])
 
-      if (profile) setFriendName(profile.full_name || profile.username || 'Unknown')
+      if (profile) {
+        setFriendName(profile.full_name || profile.username || 'Unknown')
+        setFriendAvatarUrl(profile.avatar_url || null)
+      }
       if (myProfile) setSenderName(myProfile.full_name || myProfile.username || 'Someone')
 
       const { data } = await supabase
@@ -188,9 +192,14 @@ export default function DMPage() {
         >
           ←
         </button>
-        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
-          {initials}
-        </div>
+        {friendAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={friendAvatarUrl} alt={friendName} className="w-8 h-8 rounded-full object-cover shrink-0" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {initials}
+          </div>
+        )}
         <span className="font-semibold text-fg">{friendName}</span>
       </nav>
 
