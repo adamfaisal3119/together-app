@@ -15,13 +15,13 @@ interface Group {
 interface Member {
   user_id: string
   role: string
-  profiles: { full_name: string | null; username: string | null } | null
+  profiles: { full_name: string | null; username: string | null; avatar_url: string | null } | null
 }
 
 interface RawMember {
   user_id: string
   role: string
-  profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
+  profiles: { full_name: string | null; username: string | null; avatar_url: string | null } | { full_name: string | null; username: string | null; avatar_url: string | null }[] | null
 }
 
 interface Event {
@@ -48,6 +48,11 @@ function MemberAvatar({ member, size = 'md' }: { member: Member; size?: 'sm' | '
   const name = member.profiles?.full_name || member.profiles?.username || '?'
   const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
   const s = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-12 h-12 text-base' : 'w-9 h-9 text-sm'
+  const avatarUrl = member.profiles?.avatar_url
+  if (avatarUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={avatarUrl} alt={name} className={`${s} rounded-full object-cover shrink-0 ring-2 ring-base`} />
+  }
   return (
     <div className={`${s} rounded-full bg-accent flex items-center justify-center text-white font-bold shrink-0 ring-2 ring-base`}>
       {initials}
@@ -78,7 +83,7 @@ export default function GroupPage() {
   const loadMembers = useCallback(async () => {
     const { data } = await supabase
       .from('group_members')
-      .select('user_id, role, profiles(full_name, username)')
+      .select('user_id, role, profiles(full_name, username, avatar_url)')
       .eq('group_id', groupId)
     if (data) {
       setMembers((data as RawMember[]).map(m => ({
