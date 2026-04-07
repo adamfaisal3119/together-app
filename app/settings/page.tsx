@@ -261,7 +261,7 @@ export default function SettingsPage() {
               disabled={pushLoading}
               className={`relative w-12 h-7 rounded-full transition-colors shrink-0 disabled:opacity-50 ${pushEnabled ? 'bg-accent' : 'bg-edge'}`}
             >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${pushEnabled ? 'translate-x-6.5' : 'translate-x-1'}`} />
+              <span className={`absolute left-0 top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${pushEnabled ? 'translate-x-6.5' : 'translate-x-1'}`} />
             </button>
           </div>
         </div>
