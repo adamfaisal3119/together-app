@@ -443,6 +443,25 @@ export default function CalendarPage() {
     if (error) {
       setFormError('Failed to create event: ' + error.message)
     } else {
+      if (isInvite) {
+        const { data: members } = await supabase
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', groupId)
+          .neq('user_id', user?.id)
+
+        if (members && members.length > 0) {
+          const notifications = (members as { user_id: string }[]).map(member => ({
+            user_id: member.user_id,
+            type: 'group_invite',
+            title: `You're invited to ${title.trim()}`,
+            body: description.trim() || `New group event in ${groupName}`,
+            link: '/invites',
+          }))
+          await supabase.from('notifications').insert(notifications)
+        }
+      }
+
       setTitle('')
       setDescription('')
       setEventType('general')

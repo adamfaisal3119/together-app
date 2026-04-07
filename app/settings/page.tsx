@@ -7,6 +7,17 @@ import { SkeletonPage } from '@/components/Skeleton'
 import { THEME_PRESETS, BG_PRESETS, type ThemeAccent, type BgStyle } from '@/lib/themes'
 import { applyAccent, applyBg, useTheme } from '@/lib/theme-context'
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [fullName, setFullName] = useState('')
@@ -104,32 +115,69 @@ export default function SettingsPage() {
       return
     }
     setPushLoading(true)
-    const reg = await navigator.serviceWorker.ready
-    if (pushEnabled) {
-      const sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) })
-        await sub.unsubscribe()
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (pushEnabled) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          const res = await fetch('/api/push/subscribe', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          })
+          if (!res.ok) {
+            const errText = await res.text()
+            throw new Error(errText || 'Failed to remove subscription')
+          }
+          await sub.unsubscribe()
+        }
+        setPushEnabled(false)
+        setMessage({ text: 'Push notifications disabled.', ok: true })
+      } else {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') {
+          setMessage({ text: 'Permission denied — enable notifications in your browser settings.', ok: false })
+          setPushLoading(false)
+          return
+        }
+        const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        if (!key) {
+          throw new Error('Missing VAPID public key')
+        }
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        })
+        const json = sub.toJSON()
+        const res = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+        })
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(errText || 'Failed to save subscription')
+        }
+        setPushEnabled(true)
+        setMessage({ text: 'Push notifications enabled!', ok: true })
       }
-      setPushEnabled(false)
-    } else {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') { setMessage({ text: 'Permission denied — enable notifications in your browser settings.', ok: false }); setPushLoading(false); return }
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY })
-      const json = sub.toJSON()
-      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }) })
-      setPushEnabled(true)
-      setMessage({ text: 'Push notifications enabled!', ok: true })
+    } catch (error) {
+      console.error('Push subscription error:', error)
+      setMessage({ text: 'Push notification setup failed. Please try again.', ok: false })
+    } finally {
+      setPushLoading(false)
     }
-    setPushLoading(false)
   }
 
   // Check if already subscribed on mount
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
-    navigator.serviceWorker.ready.then(reg =>
-      reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub))
-    )
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setPushEnabled(!!sub))
+      .catch(() => {})
   }, [])
 
   const getInitials = () => {

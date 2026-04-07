@@ -17,6 +17,7 @@ export default function DMPage() {
   const [newMessage, setNewMessage] = useState('')
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [friendName, setFriendName] = useState('')
+  const [senderName, setSenderName] = useState('Someone')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [friendTyping, setFriendTyping] = useState(false)
@@ -34,9 +35,13 @@ export default function DMPage() {
       if (!user) { router.push('/login'); return }
       setUser(user)
 
-      const { data: profile } = await supabase
-        .from('profiles').select('full_name, username').eq('id', friendId).single()
+      const [{ data: profile }, { data: myProfile }] = await Promise.all([
+        supabase.from('profiles').select('full_name, username').eq('id', friendId).single(),
+        supabase.from('profiles').select('full_name, username').eq('id', user.id).single(),
+      ])
+
       if (profile) setFriendName(profile.full_name || profile.username || 'Unknown')
+      if (myProfile) setSenderName(myProfile.full_name || myProfile.username || 'Someone')
 
       const { data } = await supabase
         .from('direct_messages')
@@ -134,11 +139,18 @@ export default function DMPage() {
       .insert({ sender_id: user.id, receiver_id: friendId, content })
       .select('id, created_at')
       .single()
-    setSending(false)
 
     if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
+      await supabase.from('notifications').insert({
+        user_id: friendId,
+        type: 'message',
+        title: `${senderName} sent you a message`,
+        body: content.slice(0, 80),
+        link: `/dm/${user.id}`,
+      })
     }
+    setSending(false)
   }
 
   const handleTyping = (value: string) => {
