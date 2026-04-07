@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import TikTokViewer from '@/components/TikTokViewer'
 
 interface Memory {
   id: string
@@ -24,13 +25,10 @@ export default function MemoriesPage() {
   const [caption, setCaption] = useState('')
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const touchStartX = useRef<number | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
-
-  const selected = selectedIndex !== null ? memories[selectedIndex] ?? null : null
 
   const fetchMemories = useCallback(async () => {
     const { data } = await supabase
@@ -41,7 +39,6 @@ export default function MemoriesPage() {
 
     if (!data) return
 
-    // Batch all uploader profile lookups in one query
     const uploaderIds = [...new Set(data.map((m: { uploaded_by: string }) => m.uploaded_by))]
     const { data: profiles } = await supabase
       .from('profiles').select('id, full_name, username').in('id', uploaderIds)
@@ -51,19 +48,12 @@ export default function MemoriesPage() {
       ])
     )
 
-    const withNames: Memory[] = data.map((m: {
+    setMemories(data.map((m: {
       id: string; file_url: string; file_type: string; caption: string | null; created_at: string; uploaded_by: string
     }) => ({
-      id: m.id,
-      file_url: m.file_url,
-      file_type: m.file_type,
-      caption: m.caption,
-      created_at: m.created_at,
-      uploaded_by: m.uploaded_by,
+      ...m,
       uploader_name: profileMap[m.uploaded_by] ?? 'Unknown',
-    }))
-
-    setMemories(withNames)
+    })))
   }, [supabase, groupId])
 
   useEffect(() => {
@@ -78,18 +68,6 @@ export default function MemoriesPage() {
     }
     load()
   }, [supabase, router, groupId, fetchMemories])
-
-  // Keyboard navigation
-  useEffect(() => {
-    if (selectedIndex === null) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setSelectedIndex(i => i !== null ? Math.min(i + 1, memories.length - 1) : null)
-      if (e.key === 'ArrowLeft') setSelectedIndex(i => i !== null ? Math.max(i - 1, 0) : null)
-      if (e.key === 'Escape') setSelectedIndex(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [selectedIndex, memories.length])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -126,22 +104,15 @@ export default function MemoriesPage() {
     await fetchMemories()
   }
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
-
-  const isVideo = (m: Memory) => m.file_type === 'video'
-
-  const goNext = () => setSelectedIndex(i => i !== null ? Math.min(i + 1, memories.length - 1) : null)
-  const goPrev = () => setSelectedIndex(i => i !== null ? Math.max(i - 1, 0) : null)
-
-  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    if (dx < -50) goNext()
-    else if (dx > 50) goPrev()
-    touchStartX.current = null
-  }
+  const tikTokItems = memories.map(m => ({
+    id: m.id,
+    file_url: m.file_url,
+    file_type: m.file_type,
+    caption: m.caption,
+    uploader_name: m.uploader_name,
+    group_name: groupName,
+    onDelete: m.uploaded_by === user?.id ? () => deleteMemory(m) : undefined,
+  }))
 
   if (loading) return (
     <main className="min-h-screen bg-base text-fg pb-24 page-enter">
@@ -198,13 +169,13 @@ export default function MemoriesPage() {
             {memories.map((memory, index) => (
               <button key={memory.id} onClick={() => setSelectedIndex(index)}
                 className="relative aspect-square rounded-xl overflow-hidden bg-elevated group">
-                {isVideo(memory) ? (
+                {memory.file_type === 'video' ? (
                   <video src={memory.file_url} className="w-full h-full object-cover" muted />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={memory.file_url} alt={memory.caption || ''} className="w-full h-full object-cover" />
                 )}
-                {isVideo(memory) && (
+                {memory.file_type === 'video' && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
                       <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
@@ -222,88 +193,12 @@ export default function MemoriesPage() {
         )}
       </div>
 
-      {/* Lightbox */}
-      {selected && selectedIndex !== null && (
-        <div
-          className="fixed inset-0 bg-black/92 z-50 flex flex-col"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-            <span className="text-white/50 text-sm">{selectedIndex + 1} / {memories.length}</span>
-            <button
-              onClick={() => setSelectedIndex(null)}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-            >
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Media area */}
-          <div className="flex-1 flex items-center justify-center relative min-h-0 px-12">
-            {/* Prev */}
-            {selectedIndex > 0 && (
-              <button
-                onClick={goPrev}
-                className="absolute left-2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
-              >
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            )}
-
-            {isVideo(selected) ? (
-              <video
-                key={selected.id}
-                src={selected.file_url}
-                controls
-                autoPlay
-                className="max-w-full max-h-full rounded-2xl"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={selected.id}
-                src={selected.file_url}
-                alt={selected.caption || ''}
-                className="max-w-full max-h-full rounded-2xl object-contain"
-                onClick={() => setSelectedIndex(null)}
-              />
-            )}
-
-            {/* Next */}
-            {selectedIndex < memories.length - 1 && (
-              <button
-                onClick={goNext}
-                className="absolute right-2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
-              >
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Bottom info */}
-          <div className="shrink-0 px-5 py-4">
-            <div className="max-w-lg mx-auto">
-              {selected.caption && <p className="text-white font-medium mb-1 text-sm">{selected.caption}</p>}
-              <p className="text-white/50 text-xs">{selected.uploader_name} · {formatDate(selected.created_at)}</p>
-              {selected.uploaded_by === user?.id && (
-                <button
-                  onClick={() => deleteMemory(selected)}
-                  className="mt-3 px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors"
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+      {selectedIndex !== null && (
+        <TikTokViewer
+          items={tikTokItems}
+          startIndex={selectedIndex}
+          onClose={() => setSelectedIndex(null)}
+        />
       )}
     </main>
   )

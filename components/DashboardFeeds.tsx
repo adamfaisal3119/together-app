@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import TikTokViewer from '@/components/TikTokViewer'
 
 interface Event {
   id: string
@@ -114,6 +115,7 @@ export function UpcomingEventsFeed({ memberGroupIds }: { memberGroupIds: string[
 export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: string[] }) {
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const groupIdSet = useMemo(() => new Set(memberGroupIds), [memberGroupIds])
 
@@ -149,20 +151,28 @@ export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: string[
 
   if (memories.length === 0) return null
 
+  const tikTokItems = memories.map(m => ({
+    id: m.id,
+    file_url: m.file_url,
+    file_type: m.file_type,
+    caption: m.caption,
+    group_name: m.groups?.name,
+  }))
+
   return (
     <div>
       <p className="text-xs font-semibold text-fg-faint uppercase tracking-widest mb-3 px-1">Recent memories</p>
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {memories.map(mem => (
-          <Link
+        {memories.map((mem, index) => (
+          <button
             key={mem.id}
-            href={mem.groups ? `/groups/${mem.groups.id}/memories` : '/groups'}
-            className="shrink-0"
+            onClick={() => setViewerIndex(index)}
+            className="shrink-0 text-left"
           >
             <div className="w-28 bg-surface rounded-xl border border-edge-dim overflow-hidden">
               {mem.file_type === 'video' ? (
-                <div className="w-28 h-28 bg-elevated flex items-center justify-center text-3xl">
-                  🎬
+                <div className="w-28 h-28 bg-elevated flex items-center justify-center">
+                  <svg className="w-8 h-8 text-fg-faint" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 </div>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -172,9 +182,17 @@ export function RecentMemoriesFeed({ memberGroupIds }: { memberGroupIds: string[
                 <p className="text-xs font-medium text-fg truncate">{mem.groups?.name || 'Group'}</p>
               </div>
             </div>
-          </Link>
+          </button>
         ))}
       </div>
+
+      {viewerIndex !== null && (
+        <TikTokViewer
+          items={tikTokItems}
+          startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </div>
   )
 }
