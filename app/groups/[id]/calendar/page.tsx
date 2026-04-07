@@ -19,6 +19,8 @@ interface Event {
 interface RsvpCounts {
   accepted: number
   declined: number
+  tentative: number
+  unsure: number
   pending: number
 }
 
@@ -91,6 +93,7 @@ export default function CalendarPage() {
   const [rsvpCounts, setRsvpCounts] = useState<Record<string, RsvpCounts>>({})
   const [myRsvps, setMyRsvps] = useState<Record<string, { id: string; status: string }>>({})
   const [rsvpResponding, setRsvpResponding] = useState<string | null>(null)
+  const [openRsvpMenuFor, setOpenRsvpMenuFor] = useState<string | null>(null)
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({})
   const [comments, setComments] = useState<Record<string, Comment[]>>({})
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
@@ -178,11 +181,15 @@ export default function CalendarPage() {
 
     if (rsvpData) {
       const counts: Record<string, RsvpCounts> = {}
-      eventIds.forEach(id => { counts[id] = { accepted: 0, declined: 0, pending: 0 } })
+      eventIds.forEach(id => {
+        counts[id] = { accepted: 0, declined: 0, tentative: 0, unsure: 0, pending: 0 }
+      })
       rsvpData.forEach((r: { event_id: string; status: string }) => {
         if (counts[r.event_id]) {
           if (r.status === 'accepted') counts[r.event_id].accepted++
           else if (r.status === 'declined') counts[r.event_id].declined++
+          else if (r.status === 'tentative') counts[r.event_id].tentative++
+          else if (r.status === 'unsure') counts[r.event_id].unsure++
           else counts[r.event_id].pending++
         }
       })
@@ -277,7 +284,37 @@ export default function CalendarPage() {
     })
   }
 
-  const respondToEvent = async (eventId: string, status: 'accepted' | 'declined') => {
+  const RSVP_OPTIONS = [
+    { value: 'accepted', label: 'Going', badge: 'bg-emerald-500/15 text-emerald-400' },
+    { value: 'declined', label: 'Declined', badge: 'bg-rose-500/15 text-rose-400' },
+    { value: 'tentative', label: 'Tentative', badge: 'bg-amber-500/15 text-amber-400' },
+    { value: 'unsure', label: 'Unsure', badge: 'bg-slate-500/15 text-slate-300' },
+  ] as const
+
+  const getRsvpLabel = (status: string) => {
+    switch (status) {
+      case 'accepted': return 'Going'
+      case 'declined': return 'Declined'
+      case 'tentative': return 'Tentative'
+      case 'unsure': return 'Unsure'
+      default: return 'Pending'
+    }
+  }
+
+  const getRsvpBadgeClass = (status: string) => {
+    switch (status) {
+      case 'accepted': return 'bg-emerald-500/15 text-emerald-400'
+      case 'declined': return 'bg-rose-500/15 text-rose-400'
+      case 'tentative': return 'bg-amber-500/15 text-amber-400'
+      case 'unsure': return 'bg-slate-500/15 text-slate-300'
+      default: return 'bg-fg-muted/10 text-fg-muted'
+    }
+  }
+
+  const respondToEvent = async (
+    eventId: string,
+    status: 'accepted' | 'declined' | 'tentative' | 'unsure'
+  ) => {
     if (!user) return
     setRsvpResponding(eventId)
     const existing = myRsvps[eventId]
@@ -293,10 +330,14 @@ export default function CalendarPage() {
       if (existing) {
         if (existing.status === 'accepted') c.accepted = Math.max(0, c.accepted - 1)
         else if (existing.status === 'declined') c.declined = Math.max(0, c.declined - 1)
+        else if (existing.status === 'tentative') c.tentative = Math.max(0, c.tentative - 1)
+        else if (existing.status === 'unsure') c.unsure = Math.max(0, c.unsure - 1)
         else c.pending = Math.max(0, c.pending - 1)
       }
       if (status === 'accepted') c.accepted++
-      else c.declined++
+      else if (status === 'declined') c.declined++
+      else if (status === 'tentative') c.tentative++
+      else if (status === 'unsure') c.unsure++
       return { ...prev, [eventId]: c }
     })
     setRsvpResponding(null)
@@ -947,33 +988,50 @@ export default function CalendarPage() {
                                   )
                                 }
                                 return (
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                                      myRsvp.status === 'accepted'
-                                        ? 'bg-emerald-500/15 text-emerald-400'
-                                        : 'bg-rose-500/15 text-rose-400'
-                                    }`}>
-                                      {myRsvp.status === 'accepted' ? 'Going' : 'Declined'}
+                                  <div className="relative flex items-center gap-2 mb-3">
+                                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${getRsvpBadgeClass(myRsvp.status)}`}>
+                                      {getRsvpLabel(myRsvp.status)}
                                     </span>
                                     <button
-                                      onClick={() => respondToEvent(event.id, myRsvp.status === 'accepted' ? 'declined' : 'accepted')}
+                                      onClick={() => setOpenRsvpMenuFor(openRsvpMenuFor === event.id ? null : event.id)}
                                       disabled={responding}
-                                      className="text-xs text-fg-faint hover:text-fg underline transition-colors disabled:opacity-50"
+                                      className="text-xs text-fg-faint hover:text-fg transition-colors disabled:opacity-50"
                                     >
                                       Change
                                     </button>
+                                    {openRsvpMenuFor === event.id && (
+                                      <div className="absolute right-0 top-full mt-2 w-44 rounded-2xl border border-edge-dim bg-surface shadow-2xl z-20 overflow-hidden">
+                                        {RSVP_OPTIONS.map(option => (
+                                          <button
+                                            key={option.value}
+                                            onClick={() => {
+                                              respondToEvent(event.id, option.value)
+                                              setOpenRsvpMenuFor(null)
+                                            }}
+                                            disabled={responding}
+                                            className="w-full text-left px-3 py-3 text-sm text-fg hover:bg-accent/10 transition-colors"
+                                          >
+                                            {option.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 )
                               })()}
 
                               {/* RSVP counts */}
                               {event.is_invite && rsvp && (
-                                <div className="flex gap-3 mb-3">
-                                  <span className="text-xs text-emerald-500 font-medium">{rsvp.accepted} going</span>
-                                  <span className="text-xs text-fg-faint">·</span>
-                                  <span className="text-xs text-rose-400 font-medium">{rsvp.declined} declined</span>
-                                  <span className="text-xs text-fg-faint">·</span>
-                                  <span className="text-xs text-fg-muted font-medium">{rsvp.pending} pending</span>
+                                <div className="flex flex-wrap gap-3 mb-3 text-xs">
+                                  <span className="text-emerald-500 font-medium">{rsvp.accepted} going</span>
+                                  <span className="text-fg-faint">·</span>
+                                  <span className="text-amber-400 font-medium">{rsvp.tentative} tentative</span>
+                                  <span className="text-fg-faint">·</span>
+                                  <span className="text-slate-300 font-medium">{rsvp.unsure} unsure</span>
+                                  <span className="text-fg-faint">·</span>
+                                  <span className="text-rose-400 font-medium">{rsvp.declined} declined</span>
+                                  <span className="text-fg-faint">·</span>
+                                  <span className="text-fg-muted font-medium">{rsvp.pending} pending</span>
                                 </div>
                               )}
 

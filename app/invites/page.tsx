@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 interface InviteEvent {
   eventId: string
   rsvpId: string | null
-  status: 'pending' | 'accepted' | 'declined'
+  status: 'pending' | 'accepted' | 'declined' | 'tentative' | 'unsure'
   title: string
   description: string | null
   event_type: string
@@ -29,6 +29,7 @@ export default function InvitesPage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [responding, setResponding] = useState<string | null>(null)
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
@@ -89,7 +90,7 @@ export default function InvitesPage() {
       return {
         eventId: e.id,
         rsvpId: rsvp?.id ?? null,
-        status: (rsvp?.status as 'pending' | 'accepted' | 'declined') ?? 'pending',
+        status: (rsvp?.status as 'pending' | 'accepted' | 'declined' | 'tentative' | 'unsure') ?? 'pending',
         title: e.title,
         description: e.description,
         event_type: e.event_type,
@@ -122,7 +123,10 @@ export default function InvitesPage() {
     load()
   }, [supabase, router, fetchInvites])
 
-  const respond = async (invite: InviteEvent, status: 'accepted' | 'declined') => {
+  const respond = async (
+    invite: InviteEvent,
+    status: 'accepted' | 'declined' | 'tentative' | 'unsure'
+  ) => {
     if (!user) return
     setResponding(invite.eventId)
 
@@ -140,6 +144,32 @@ export default function InvitesPage() {
 
     await fetchInvites(user.id)
     setResponding(null)
+  }
+
+  const RSVP_OPTIONS = [
+    { value: 'accepted', label: 'Accept' },
+    { value: 'declined', label: 'Decline' },
+    { value: 'tentative', label: 'Tentative' },
+    { value: 'unsure', label: 'Unsure' }
+  ] as const
+
+  const formatResponseLabel = (status: InviteEvent['status']) => {
+    switch (status) {
+      case 'accepted': return 'Accepted'
+      case 'declined': return 'Declined'
+      case 'tentative': return 'Tentative'
+      case 'unsure': return 'Unsure'
+      default: return 'Pending'
+    }
+  }
+
+  const responseBadgeClass = (status: InviteEvent['status']) => {
+    switch (status) {
+      case 'accepted': return 'bg-emerald-500/20 text-emerald-500'
+      case 'tentative': return 'bg-amber-500/20 text-amber-400'
+      case 'unsure': return 'bg-slate-500/20 text-slate-300'
+      default: return 'bg-rose-500/20 text-rose-400'
+    }
   }
 
   const formatDate = (iso: string) =>
@@ -260,21 +290,34 @@ export default function InvitesPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-3">
-                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                        invite.status === 'accepted'
-                          ? 'bg-emerald-500/20 text-emerald-500'
-                          : 'bg-rose-500/20 text-rose-400'
-                      }`}>
-                        {invite.status === 'accepted' ? 'Accepted' : 'Declined'}
+                    <div className="flex items-center gap-2 shrink-0 ml-3 relative">
+                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${responseBadgeClass(invite.status)}`}>
+                        {formatResponseLabel(invite.status)}
                       </span>
                       <button
-                        onClick={() => respond(invite, invite.status === 'accepted' ? 'declined' : 'accepted')}
+                        onClick={() => setOpenMenuFor(openMenuFor === invite.eventId ? null : invite.eventId)}
                         disabled={responding === invite.eventId}
-                        className="text-xs text-fg-faint hover:text-fg underline transition-colors"
+                        className="text-xs text-fg-faint hover:text-fg transition-colors"
                       >
                         Change
                       </button>
+                      {openMenuFor === invite.eventId && (
+                        <div className="absolute right-0 top-full mt-2 w-44 rounded-2xl border border-edge-dim bg-surface shadow-2xl z-20 overflow-hidden">
+                          {RSVP_OPTIONS.map(option => (
+                            <button
+                              key={option.value}
+                              onClick={() => {
+                                respond(invite, option.value)
+                                setOpenMenuFor(null)
+                              }}
+                              disabled={responding === invite.eventId}
+                              className="w-full text-left px-3 py-3 text-sm text-fg hover:bg-accent/10 transition-colors"
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
