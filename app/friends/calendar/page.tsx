@@ -122,7 +122,14 @@ function FriendsCalendarInner() {
 
     if (data) {
       const friendMap = Object.fromEntries(friends.map(f => [f.id, f]))
-      setEvents((data as PersonalEvent[]).map(e => ({
+      const seen = new Set<string>()
+      const deduped = (data as PersonalEvent[]).filter(e => {
+        const key = `${e.user_id}|${e.title}|${e.start_time}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      setEvents(deduped.map(e => ({
         ...e,
         friend: friendMap[e.user_id] ?? { id: e.user_id, full_name: null, username: null, avatar_url: null },
       })))
