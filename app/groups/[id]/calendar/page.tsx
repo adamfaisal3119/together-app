@@ -822,7 +822,7 @@ export default function CalendarPage() {
               view === 'list' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
             }`}
           >
-            📋 List
+            Events
           </button>
           <button
             onClick={() => setView('calendar')}
