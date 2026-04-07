@@ -41,21 +41,28 @@ export default function MemoriesPage() {
 
     if (!data) return
 
-    const withNames: Memory[] = await Promise.all(data.map(async (m: {
+    // Batch all uploader profile lookups in one query
+    const uploaderIds = [...new Set(data.map((m: { uploaded_by: string }) => m.uploaded_by))]
+    const { data: profiles } = await supabase
+      .from('profiles').select('id, full_name, username').in('id', uploaderIds)
+    const profileMap = Object.fromEntries(
+      (profiles || []).map((p: { id: string; full_name: string | null; username: string | null }) => [
+        p.id, p.full_name || p.username || 'Unknown'
+      ])
+    )
+
+    const withNames: Memory[] = data.map((m: {
       id: string; file_url: string; file_type: string; caption: string | null; created_at: string; uploaded_by: string
-    }) => {
-      const { data: profile } = await supabase
-        .from('profiles').select('full_name, username').eq('id', m.uploaded_by).single()
-      return {
-        id: m.id,
-        file_url: m.file_url,
-        file_type: m.file_type,
-        caption: m.caption,
-        created_at: m.created_at,
-        uploaded_by: m.uploaded_by,
-        uploader_name: profile?.full_name || profile?.username || 'Unknown',
-      }
+    }) => ({
+      id: m.id,
+      file_url: m.file_url,
+      file_type: m.file_type,
+      caption: m.caption,
+      created_at: m.created_at,
+      uploaded_by: m.uploaded_by,
+      uploader_name: profileMap[m.uploaded_by] ?? 'Unknown',
     }))
+
     setMemories(withNames)
   }, [supabase, groupId])
 

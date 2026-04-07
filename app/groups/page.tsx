@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { SkeletonCard } from '@/components/Skeleton'
+import { getCache, setCache } from '@/lib/cache'
 
 interface Group {
   id: string
@@ -30,15 +31,22 @@ export default function GroupsPage() {
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  const fetchGroups = useCallback(async (userId: string) => {
+  const fetchGroups = useCallback(async (userId: string, bust = false) => {
+    const cacheKey = `groups:${userId}`
+    if (!bust) {
+      const cached = getCache<Group[]>(cacheKey)
+      if (cached) { setGroups(cached); setPageLoading(false) }
+    }
     const { data, error: fetchError } = await supabase
       .from('group_members')
       .select('group_id, groups(id, name, description, created_by)')
       .eq('user_id', userId)
     if (fetchError) { setError('Failed to load groups.'); return }
-    if (data) setGroups(
-      (data as GroupMember[]).map(d => Array.isArray(d.groups) ? d.groups[0] : d.groups).filter(Boolean)
-    )
+    if (data) {
+      const groups = (data as GroupMember[]).map(d => Array.isArray(d.groups) ? d.groups[0] : d.groups).filter(Boolean)
+      setGroups(groups)
+      setCache(cacheKey, groups)
+    }
   }, [supabase])
 
   useEffect(() => {

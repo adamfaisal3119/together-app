@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NotificationBell from '@/components/NotificationBell'
 import { UpcomingEventsFeed, RecentMemoriesFeed } from '@/components/DashboardFeeds'
+import { getCache, setCache } from '@/lib/cache'
 
 const STAT_CARDS = [
   {
@@ -57,40 +58,40 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
+      if (!user) { router.push('/login'); return }
       setUser(user)
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('full_name, username, avatar_url')
-        .eq('id', user.id)
-        .single()
-
-      if (profileData && !profileData.username) {
-        router.push('/onboarding')
-        return
+      // Show cached data instantly while revalidating in background
+      const cacheKey = `dashboard:${user.id}`
+      const cached = getCache<{ profile: typeof profileData; statCounts: number[]; groupIds: string[] }>(cacheKey)
+      if (cached) {
+        setProfile(cached.profile)
+        setStatCounts(cached.statCounts)
+        setMemberGroupIds(cached.groupIds)
+        setLoading(false)
       }
 
-      setProfile(profileData)
-      
-      // Fetch stats and group IDs
+      const { data: profileData } = await supabase
+        .from('profiles').select('full_name, username, avatar_url').eq('id', user.id).single()
+
+      if (profileData && !profileData.username) { router.push('/onboarding'); return }
+
       const [{ count: groupCount }, { count: friendCount }, { data: myGroupIds }] = await Promise.all([
         supabase.from('group_members').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('friendships').select('*', { count: 'exact', head: true })
-          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
-          .eq('status', 'accepted'),
+          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`).eq('status', 'accepted'),
         supabase.from('group_members').select('group_id').eq('user_id', user.id),
       ])
 
-      setStatCounts([groupCount ?? 0, friendCount ?? 0])
       const groupIds = (myGroupIds || []).map((r: { group_id: string }) => r.group_id)
+      const statCounts = [groupCount ?? 0, friendCount ?? 0]
+
+      setProfile(profileData)
+      setStatCounts(statCounts)
       setMemberGroupIds(groupIds)
+      setCache(cacheKey, { profile: profileData, statCounts, groupIds })
       setLoading(false)
     }
-
     load()
   }, [supabase, router])
 

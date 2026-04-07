@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { SkeletonRow } from '@/components/Skeleton'
+import { getCache, setCache } from '@/lib/cache'
 
 interface Profile {
   id: string
@@ -62,12 +63,23 @@ export default function FriendsPage() {
   }, [supabase])
 
   const fetchFriendships = useMemo(() => async (userId: string) => {
+    // Show cached data instantly
+    const cacheKey = `friends:${userId}`
+    const cached = getCache<{ friends: Friendship[]; pending: Friendship[]; sent: Friendship[] }>(cacheKey)
+    if (cached) {
+      setFriends(cached.friends)
+      setPending(cached.pending)
+      setSent(cached.sent)
+      setLoading(false)
+    }
+
     const { data } = await supabase
       .from('friendships')
       .select('id, status, requester_id, addressee_id')
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
     if (!data) return
-    // Batch all profile lookups in one query instead of N individual requests
+
+    // Batch all profile lookups in one query
     const friendIds = data.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id)
     const { data: profiles } = await supabase
       .from('profiles').select('id, full_name, username').in('id', friendIds)
@@ -77,9 +89,12 @@ export default function FriendsPage() {
       return { ...f, friend: profileMap[friendId] as Profile }
     })
     const accepted = enriched.filter(f => f.status === 'accepted')
+    const pending = enriched.filter(f => f.status === 'pending' && f.addressee_id === userId)
+    const sent = enriched.filter(f => f.status === 'pending' && f.requester_id === userId)
     setFriends(accepted)
-    setPending(enriched.filter(f => f.status === 'pending' && f.addressee_id === userId))
-    setSent(enriched.filter(f => f.status === 'pending' && f.requester_id === userId))
+    setPending(pending)
+    setSent(sent)
+    setCache(cacheKey, { friends: accepted, pending, sent })
     await fetchUnreadCounts(userId, accepted.map(f => f.friend.id))
   }, [supabase, fetchUnreadCounts])
 
