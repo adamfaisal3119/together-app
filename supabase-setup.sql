@@ -253,7 +253,29 @@ create policy "Anyone can view memory comments" on memory_comments for select us
 drop policy if exists "Auth users can comment on memories" on memory_comments;
 create policy "Auth users can comment on memories" on memory_comments for insert with check (auth.uid() = user_id);
 
--- 14. Triggers: notifications
+-- 14. Friends can view each other's personal events
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where tablename = 'personal_events' and policyname = 'Friends can view personal events'
+  ) then
+    execute $policy$
+      create policy "Friends can view personal events" on personal_events
+        for select using (
+          auth.uid() = user_id
+          OR exists (
+            select 1 from friendships
+            where status = 'accepted'
+              and (
+                (requester_id = auth.uid() and addressee_id = personal_events.user_id)
+                or (addressee_id = auth.uid() and requester_id = personal_events.user_id)
+              )
+          )
+        )
+    $policy$;
+  end if;
+end $$;
+
+-- 15. Triggers: notifications
 
 create or replace function notify_friend_request()
 returns trigger language plpgsql security definer as $$

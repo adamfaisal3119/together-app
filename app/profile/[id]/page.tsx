@@ -174,13 +174,17 @@ export default function ProfilePage() {
               </div>
             )}
             {friendStatus === 'friends' && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 justify-center">
                 <span className="px-5 py-2.5 bg-accent-bg text-accent-lt border border-accent/30 rounded-xl text-sm font-medium">
                   Friends
                 </span>
                 <button onClick={() => router.push(`/dm/${profile.id}`)}
                   className="px-5 py-2.5 bg-elevated hover:bg-accent hover:text-white text-fg-muted rounded-xl text-sm font-semibold transition-colors">
                   Message
+                </button>
+                <button onClick={() => router.push(`/friends/calendar?id=${profile.id}`)}
+                  className="px-5 py-2.5 bg-elevated hover:bg-accent hover:text-white text-fg-muted rounded-xl text-sm font-semibold transition-colors">
+                  📅 Calendar
                 </button>
               </div>
             )}

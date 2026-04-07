@@ -165,7 +165,10 @@ export default function FriendsPage() {
       <nav className="sticky top-0 z-30 bg-base/80 backdrop-blur-md border-b border-edge-dim px-5 py-3 flex items-center justify-between">
         <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
         <h1 className="text-sm font-semibold text-fg-muted">Friends</h1>
-        <div className="w-16" />
+        <button onClick={() => router.push('/friends/calendar')}
+          className="text-xs text-accent-lt font-semibold hover:text-fg transition-colors">
+          📅 Calendars
+        </button>
       </nav>
 
       <div className="max-w-2xl mx-auto px-5 py-8 space-y-5 reveal">
