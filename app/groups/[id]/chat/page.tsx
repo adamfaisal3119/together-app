@@ -93,6 +93,11 @@ export default function ChatPage() {
     load()
   }, [groupId, supabase, router])
 
+  // Mark chat as viewed
+  useEffect(() => {
+    localStorage.setItem(`group_chat_last_viewed_${groupId}`, new Date().toISOString())
+  }, [groupId])
+
   // Realtime subscription
   useEffect(() => {
     let channel: RealtimeChannel | null = null
@@ -113,6 +118,8 @@ export default function ChatPage() {
             profiles: null,
           }]
         })
+        // Mark as read since user is viewing
+        localStorage.setItem(`group_chat_last_viewed_${groupId}`, new Date().toISOString())
       })
       .subscribe()
 

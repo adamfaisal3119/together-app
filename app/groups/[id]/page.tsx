@@ -65,6 +65,7 @@ export default function GroupPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [chatPreview, setChatPreview] = useState<ChatPreview | null>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [inviteUsername, setInviteUsername] = useState('')
@@ -113,7 +114,7 @@ export default function GroupPage() {
           .gte('start_time', new Date().toISOString())
           .order('start_time', { ascending: true })
           .limit(3),
-        supabase.from('group_messages')
+        supabase.from('messages')
           .select('content, created_at, profiles(full_name, username)')
           .eq('group_id', groupId)
           .order('created_at', { ascending: false })
@@ -138,6 +139,17 @@ export default function GroupPage() {
           created_at: msg.created_at,
           sender_name: profile?.full_name || profile?.username || 'Someone',
         })
+      }
+
+      // Calculate unread messages
+      const lastViewed = localStorage.getItem(`group_chat_last_viewed_${groupId}`)
+      if (lastViewed || chatPreview) {  // If there's a lastViewed OR there are messages (for new groups)
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+          .gt('created_at', lastViewed || '1970-01-01T00:00:00.000Z')  // If no lastViewed, count all messages
+        setUnreadCount(count || 0)
       }
 
       await loadMembers()
@@ -278,14 +290,21 @@ export default function GroupPage() {
         {/* Quick action cards — 2×2 */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Chat', emoji: '💬', path: `/groups/${groupId}/chat`, preview: chatPreview ? `${chatPreview.sender_name}: ${chatPreview.content}` : 'No messages yet' },
+            { label: 'Chat', emoji: '💬', path: `/groups/${groupId}/chat`, preview: chatPreview ? `${chatPreview.sender_name}: ${chatPreview.content}` : 'No messages yet', unreadCount: unreadCount > 0 ? unreadCount : undefined },
             { label: 'Calendar', emoji: '📅', path: `/groups/${groupId}/calendar`, preview: upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'No events' },
             { label: 'Memories', emoji: '📸', path: `/groups/${groupId}/memories`, preview: 'Photos & videos' },
             { label: 'Polls', emoji: '🗳️', path: `/groups/${groupId}/polls`, preview: pollCount > 0 ? `${pollCount} poll${pollCount !== 1 ? 's' : ''}` : 'Ask your group' },
           ].map(card => (
             <Link key={card.label} href={card.path}>
-              <div className="card-hover bg-surface rounded-2xl p-4 border border-edge-dim hover:border-accent/60 h-full flex flex-col">
-                <span className="text-2xl mb-2">{card.emoji}</span>
+              <div className="card-hover bg-surface rounded-2xl p-4 border border-edge-dim hover:border-accent/60 h-full flex flex-col relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-2xl">{card.emoji}</span>
+                  {card.unreadCount && card.unreadCount > 0 && (
+                    <div className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {card.unreadCount > 99 ? '99+' : card.unreadCount}
+                    </div>
+                  )}
+                </div>
                 <p className="font-semibold text-fg text-sm">{card.label}</p>
                 <p className="text-fg-faint text-xs mt-1 leading-snug line-clamp-2">{card.preview}</p>
               </div>
