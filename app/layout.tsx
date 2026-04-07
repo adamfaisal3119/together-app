@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/lib/theme-context'
 import { THEME_PRESETS, BG_PRESETS } from '@/lib/themes'
 import PageTransition from '@/components/PageTransition'
 import BottomNav from '@/components/BottomNav'
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -50,9 +51,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#7c3aed" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} suppressHydrationWarning />
-        <script dangerouslySetInnerHTML={{ __html: `if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js')` }} />
       </head>
       <body className="min-h-full flex flex-col bg-base text-fg">
+        <ServiceWorkerRegister />
         <ThemeProvider>
           <PageTransition>
             {children}

@@ -32,6 +32,7 @@ export default function PollsPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [voting, setVoting] = useState<string | null>(null)
+  const [deletingPoll, setDeletingPoll] = useState<string | null>(null)
 
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -186,6 +187,16 @@ export default function PollsPage() {
     }
   }
 
+  const deletePoll = async (pollId: string) => {
+    if (!user) return
+    setDeletingPoll(pollId)
+    const { error } = await supabase.from('group_polls').delete().eq('id', pollId).eq('user_id', user.id)
+    setDeletingPoll(null)
+    if (!error) {
+      setPolls(prev => prev.filter(poll => poll.id !== pollId))
+    }
+  }
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' })
 
@@ -302,13 +313,22 @@ export default function PollsPage() {
           const userVoted = poll.options.some(o => o.voted)
           return (
             <div key={poll.id} className="bg-surface rounded-2xl border border-edge-dim p-5">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-4 gap-3">
                 <div>
                   <p className="font-semibold text-fg">{poll.question}</p>
                   <p className="text-xs text-fg-faint mt-0.5">
                     {poll.creator_name} · {formatDate(poll.created_at)} · {poll.total_votes} vote{poll.total_votes !== 1 ? 's' : ''}
                   </p>
                 </div>
+                {poll.user_id === user?.id && (
+                  <button
+                    onClick={() => deletePoll(poll.id)}
+                    disabled={deletingPoll === poll.id}
+                    className="text-xs text-rose-400 hover:text-rose-200 transition-colors"
+                  >
+                    {deletingPoll === poll.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                )}
               </div>
 
               <div className="space-y-2">

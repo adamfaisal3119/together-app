@@ -20,7 +20,10 @@ function normalise(m: {
   profiles: { full_name: string | null } | { full_name: string | null }[] | null
 }): Message {
   return {
-    id: m.id, content: m.content, created_at: m.created_at, user_id: m.user_id,
+    id: m.id,
+    content: m.content,
+    created_at: m.created_at,
+    user_id: m.user_id,
     profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles,
   }
 }
@@ -28,11 +31,18 @@ function normalise(m: {
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [groupName, setGroupName] = useState('')
   const [sending, setSending] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [menuMessageId, setMenuMessageId] = useState<string | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const touchTimerRef = useRef<number | null>(null)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
@@ -52,7 +62,6 @@ export default function ChatPage() {
       .limit(PAGE_SIZE)
     setLoadingMore(false)
     if (!data || data.length === 0) { setHasMore(false); return }
-    // Save scroll height before prepend so we can restore position
     if (scrollRef.current) prevScrollHeightRef.current = scrollRef.current.scrollHeight
     setMessages(prev => [...(data as Parameters<typeof normalise>[0][]).reverse().map(normalise), ...prev])
     setHasMore(data.length === PAGE_SIZE)
@@ -84,7 +93,6 @@ export default function ChatPage() {
         .eq('group_id', groupId)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
-
       if (data) {
         setMessages((data as Parameters<typeof normalise>[0][]).reverse().map(normalise))
         setHasMore(data.length === PAGE_SIZE)
@@ -120,6 +128,18 @@ export default function ChatPage() {
         })
         // Mark as read since user is viewing
         localStorage.setItem(`group_chat_last_viewed_${groupId}`, new Date().toISOString())
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'messages',
+        filter: `group_id=eq.${groupId}`,
+      }, (payload) => {
+        setMessages(prev => prev.map(message => message.id === payload.new.id ? {
+          id: payload.new.id,
+          content: payload.new.content,
+          created_at: payload.new.created_at,
+          user_id: payload.new.user_id,
+          profiles: message.profiles,
+        } : message))
       })
       .subscribe()
 
@@ -157,9 +177,107 @@ export default function ChatPage() {
       .select('id, created_at')
       .single()
     setSending(false)
-
     if (data) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: data.id, created_at: data.created_at } : m))
+    }
+  }
+
+  const closeMenu = () => {
+    setMenuMessageId(null)
+    setMenuPosition(null)
+    if (touchTimerRef.current) {
+      window.clearTimeout(touchTimerRef.current)
+      touchTimerRef.current = null
+    }
+    touchStartRef.current = null
+  }
+
+  const openMenu = (messageId: string, x: number, y: number) => {
+    setMenuMessageId(messageId)
+    setMenuPosition({ x, y })
+  }
+
+  const startLongPress = (messageId: string, x: number, y: number) => {
+    if (touchTimerRef.current) window.clearTimeout(touchTimerRef.current)
+    touchStartRef.current = { x, y }
+    touchTimerRef.current = window.setTimeout(() => {
+      openMenu(messageId, x, y)
+      touchTimerRef.current = null
+    }, 500)
+  }
+
+  const cancelLongPress = () => {
+    if (touchTimerRef.current) {
+      window.clearTimeout(touchTimerRef.current)
+      touchTimerRef.current = null
+    }
+    touchStartRef.current = null
+  }
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    if (!touchStartRef.current || !touchTimerRef.current) return
+    const touch = event.touches[0]
+    if (Math.abs(touch.clientX - touchStartRef.current.x) > 10 || Math.abs(touch.clientY - touchStartRef.current.y) > 10) {
+      cancelLongPress()
+    }
+  }
+
+  const getMenuStyle = () => {
+    if (!menuPosition) return undefined
+    const maxY = typeof window !== 'undefined' ? window.innerHeight - 140 : menuPosition.y
+    const maxX = typeof window !== 'undefined' ? window.innerWidth - 180 : menuPosition.x
+    return {
+      top: `${Math.min(menuPosition.y, maxY)}px`,
+      left: `${Math.min(menuPosition.x, maxX)}px`,
+    }
+  }
+
+  const editMessage = (messageId: string, content: string) => {
+    closeMenu()
+    setEditingMessageId(messageId)
+    setEditingContent(content)
+  }
+
+  const cancelEdit = () => {
+    setEditingMessageId(null)
+    setEditingContent('')
+  }
+
+  const saveEdit = async () => {
+    if (!user || !editingMessageId) return
+    const trimmed = editingContent.trim()
+    if (!trimmed) return
+
+    const editedAt = new Date().toISOString()
+    if (editingMessageId.startsWith('temp-')) {
+      setMessages(prev => prev.map(message => message.id === editingMessageId ? { ...message, content: trimmed, edited_at: editedAt } : message))
+      cancelEdit()
+      return
+    }
+    setSavingEdit(true)
+    const { error } = await supabase
+      .from('messages')
+      .update({ content: trimmed, edited_at: editedAt })
+      .eq('id', editingMessageId)
+      .eq('user_id', user.id)
+    setSavingEdit(false)
+
+    if (!error) {
+      setMessages(prev => prev.map(message => message.id === editingMessageId ? { ...message, content: trimmed, edited_at: editedAt } : message))
+      cancelEdit()
+    }
+  }
+
+  const deleteMessage = async (messageId: string) => {
+    closeMenu()
+    if (!user) return
+    if (messageId.startsWith('temp-')) {
+      setMessages(prev => prev.filter(message => message.id !== messageId))
+      return
+    }
+    const { error } = await supabase.from('messages').delete().eq('id', messageId).eq('user_id', user.id)
+    if (!error) {
+      setMessages(prev => prev.filter(message => message.id !== messageId))
     }
   }
 
@@ -208,29 +326,112 @@ export default function ChatPage() {
         {messages.map((message) => {
           const isMe = message.user_id === user?.id
           return (
-            <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+            <div
+              key={message.id}
+              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+              onContextMenu={isMe ? (event) => {
+                event.preventDefault()
+                openMenu(message.id, event.clientX, event.clientY)
+              } : undefined}
+              onTouchStart={isMe ? (event) => {
+                const touch = event.touches[0]
+                startLongPress(message.id, touch.clientX, touch.clientY)
+              } : undefined}
+              onTouchEnd={isMe ? cancelLongPress : undefined}
+              onTouchCancel={isMe ? cancelLongPress : undefined}
+              onTouchMove={isMe ? handleTouchMove : undefined}
+            >
               <div className="flex items-end gap-2">
                 {!isMe && (
                   <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {message.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                   </div>
                 )}
-                <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                  isMe ? 'bg-accent text-white rounded-br-sm' : 'bg-elevated text-fg rounded-bl-sm'
-                }`}>
-                  {!isMe && (
-                    <p className="text-accent-lt text-xs font-semibold mb-1">
-                      {message.profiles?.full_name || 'Unknown'}
-                    </p>
-                  )}
-                  {message.content}
+                <div>
+                  <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                    isMe ? 'bg-accent text-white rounded-br-sm' : 'bg-elevated text-fg rounded-bl-sm'
+                  }`}>
+                    <div className="min-w-0">
+                      {!isMe && (
+                        <p className="text-accent-lt text-xs font-semibold mb-1">
+                          {message.profiles?.full_name || 'Unknown'}
+                        </p>
+                      )}
+                      {editingMessageId === message.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingContent}
+                            onChange={e => setEditingContent(e.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' && !event.shiftKey) {
+                                event.preventDefault()
+                                saveEdit()
+                              }
+                            }}
+                            className="w-full resize-none rounded-2xl bg-base px-3 py-2 text-sm text-fg border border-edge focus:outline-none focus:border-accent"
+                            rows={3}
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={cancelEdit}
+                              className="rounded-2xl px-3 py-2 text-[11px] text-fg-muted hover:bg-edge/70"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={saveEdit}
+                              disabled={savingEdit || !editingContent.trim()}
+                              className="rounded-2xl bg-white/10 px-3 py-2 text-[11px] font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+                            >
+                              {savingEdit ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        message.content
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-fg-faint mt-1 px-2">{formatTime(message.created_at)}</p>
+              <p className="text-xs text-fg-faint mt-1 px-2">
+                {formatTime(message.created_at)}
+              </p>
             </div>
           )
         })}
         <div ref={bottomRef} />
+        {menuMessageId && menuPosition && (
+          <div className="fixed inset-0 z-50 bg-black/10" onClick={closeMenu}>
+            <div
+              className="absolute z-50 min-w-40 rounded-3xl border border-edge bg-base p-2 shadow-2xl"
+              style={getMenuStyle()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                onClick={() => deleteMessage(menuMessageId)}
+                className="w-full rounded-2xl px-3 py-3 text-left text-sm font-semibold text-rose-400 hover:bg-edge/70"
+              >
+                Delete Message
+              </button>
+              <button
+                onClick={() => {
+                  const message = messages.find(m => m.id === menuMessageId)
+                  if (message) editMessage(menuMessageId, message.content)
+                }}
+                className="w-full rounded-2xl px-3 py-3 text-left text-sm text-fg hover:bg-edge/70"
+              >
+                Edit Message
+              </button>
+              <button
+                onClick={closeMenu}
+                className="w-full rounded-2xl px-3 py-3 text-left text-sm text-fg-muted hover:bg-edge/70"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-edge-dim px-5 py-3 shrink-0">

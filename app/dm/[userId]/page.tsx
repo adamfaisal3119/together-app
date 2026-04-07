@@ -22,6 +22,7 @@ export default function DMPage() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [friendTyping, setFriendTyping] = useState(false)
+  const [deletingMessage, setDeletingMessage] = useState<string | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
@@ -157,6 +158,20 @@ export default function DMPage() {
     setSending(false)
   }
 
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return
+    if (messageId.startsWith('temp-')) {
+      setMessages(prev => prev.filter(message => message.id !== messageId))
+      return
+    }
+    setDeletingMessage(messageId)
+    const { error } = await supabase.from('direct_messages').delete().eq('id', messageId).eq('sender_id', user.id)
+    setDeletingMessage(null)
+    if (!error) {
+      setMessages(prev => prev.filter(message => message.id !== messageId))
+    }
+  }
+
   const handleTyping = (value: string) => {
     setNewMessage(value)
     broadcastTyping(true)
@@ -215,10 +230,21 @@ export default function DMPage() {
           const isMe = message.sender_id === user?.id
           return (
             <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                isMe ? 'bg-accent text-white rounded-br-sm' : 'bg-elevated text-fg rounded-bl-sm'
-              }`}>
-                {message.content}
+              <div className="relative">
+                <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                  isMe ? 'bg-accent text-white rounded-br-sm' : 'bg-elevated text-fg rounded-bl-sm'
+                }`}>
+                  {message.content}
+                </div>
+                {isMe && (
+                  <button
+                    onClick={() => deleteMessage(message.id)}
+                    disabled={deletingMessage === message.id}
+                    className="absolute -top-1 -right-1 text-[10px] text-rose-400 hover:text-rose-200"
+                  >
+                    {deletingMessage === message.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                )}
               </div>
               <p className="text-xs text-fg-faint mt-1 px-1">{formatTime(message.created_at)}</p>
             </div>

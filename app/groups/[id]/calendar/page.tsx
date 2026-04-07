@@ -99,6 +99,7 @@ export default function CalendarPage() {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const [commentSending, setCommentSending] = useState(false)
+  const [userName, setUserName] = useState('You')
 
   // Find a time state
   const [searchDate, setSearchDate] = useState('')
@@ -154,17 +155,18 @@ export default function CalendarPage() {
 
   const isAdmin = members.some(m => m.user_id === user?.id && m.role === 'admin')
 
-  const deleteComment = async (commentId: string, eventId: string) => {
-    if (!user || !isAdmin) return
+  const deleteComment = async (commentId: string, eventId: string, commentUserId: string) => {
+    if (!user || (!isAdmin && commentUserId !== user.id)) return
+    const newContent = isAdmin ? '-deleted by admin' : '-deleted by user'
     const { error } = await supabase
       .from('event_comments')
-      .update({ content: '-deleted by admin' })
+      .update({ content: newContent })
       .eq('id', commentId)
     if (!error) {
       setComments(prev => ({
         ...prev,
         [eventId]: (prev[eventId] || []).map(c =>
-          c.id === commentId ? { ...c, content: '-deleted by admin' } : c
+          c.id === commentId ? { ...c, content: newContent } : c
         )
       }))
     }
@@ -234,23 +236,33 @@ export default function CalendarPage() {
       setReactions(reactionMap)
     }
 
-    // Comments per event
+    // Comments per event — batch profile lookup instead of FK join
     const { data: commentData } = await supabase
       .from('event_comments')
-      .select('id, event_id, content, created_at, user_id, profiles(full_name, username)')
+      .select('id, event_id, content, created_at, user_id')
       .in('event_id', eventIds)
       .order('created_at', { ascending: true })
 
     if (commentData) {
       const commentMap: Record<string, Comment[]> = {}
       eventIds.forEach(id => { commentMap[id] = [] })
-      commentData.forEach((c: {
-        id: string; event_id: string; content: string; created_at: string; user_id: string
-        profiles: { full_name: string | null; username: string | null } | { full_name: string | null; username: string | null }[] | null
-      }) => {
-        const profile = Array.isArray(c.profiles) ? c.profiles[0] ?? null : c.profiles
+
+      const uids = [...new Set(commentData.map((c: { user_id: string }) => c.user_id))]
+      const { data: profileRows } = uids.length > 0
+        ? await supabase.from('profiles').select('id, full_name, username').in('id', uids)
+        : { data: [] }
+      const profileMap = Object.fromEntries(
+        (profileRows || []).map((p: { id: string; full_name: string | null; username: string | null }) => [
+          p.id, { full_name: p.full_name, username: p.username }
+        ])
+      )
+
+      commentData.forEach((c: { id: string; event_id: string; content: string; created_at: string; user_id: string }) => {
         if (commentMap[c.event_id]) {
-          commentMap[c.event_id].push({ id: c.id, content: c.content, created_at: c.created_at, user_id: c.user_id, profiles: profile })
+          commentMap[c.event_id].push({
+            id: c.id, content: c.content, created_at: c.created_at, user_id: c.user_id,
+            profiles: profileMap[c.user_id] ?? null,
+          })
         }
       })
       setComments(commentMap)
@@ -347,16 +359,22 @@ export default function CalendarPage() {
     if (!user || !newComment.trim()) return
     setCommentSending(true)
     const content = newComment.trim()
-    setNewComment('')
-    const { data } = await supabase.from('event_comments')
+    const { data, error } = await supabase.from('event_comments')
       .insert({ event_id: eventId, user_id: user.id, content })
       .select('id, content, created_at, user_id')
       .single()
-    if (data) {
+    if (error) {
+      console.error('Comment failed:', error.message)
+    } else if (data) {
+      setNewComment('')
       setComments(prev => ({
         ...prev,
-        [eventId]: [...(prev[eventId] || []), { ...data, profiles: null }]
+        [eventId]: [...(prev[eventId] || []), {
+          ...data,
+          profiles: { full_name: userName, username: null }
+        }]
       }))
+      setExpandedEventId(eventId)
     }
     setCommentSending(false)
   }
@@ -373,6 +391,13 @@ export default function CalendarPage() {
         .eq('id', groupId)
         .single()
       if (groupData) setGroupName(groupData.name)
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name, username')
+        .eq('id', user.id)
+        .single()
+      if (profileData) setUserName(profileData.full_name || profileData.username || 'You')
 
       const eventsRes = await supabase
         .from('events').select('*').eq('group_id', groupId).order('start_time', { ascending: true })
@@ -1079,9 +1104,9 @@ export default function CalendarPage() {
                                         <span className="text-xs font-semibold text-fg">
                                           {c.profiles?.full_name || c.profiles?.username || 'Unknown'}
                                         </span>
-                                        {isAdmin && c.content !== '-deleted by admin' && (
+                                        {(isAdmin || c.user_id === user?.id) && c.content !== '-deleted by admin' && c.content !== '-deleted by user' && (
                                           <button
-                                            onClick={() => deleteComment(c.id, event.id)}
+                                            onClick={() => deleteComment(c.id, event.id, c.user_id)}
                                             className="text-[10px] text-rose-400 hover:text-rose-200 transition-colors"
                                           >
                                             Delete

@@ -9,8 +9,8 @@ interface Profile {
   full_name: string | null
   username: string | null
   avatar_url: string | null
-  bio: string | null
-  location: string | null
+  bio?: string | null
+  location?: string | null
 }
 
 interface SharedGroup {
@@ -43,7 +43,7 @@ export default function ProfilePage() {
       }
 
       const [{ data: prof }, { data: friendship }, { data: myGroups }, { data: theirGroups }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, username, avatar_url, bio, location').eq('id', profileId).single(),
+        supabase.from('profiles').select('id, full_name, username, avatar_url').eq('id', profileId).single(),
         supabase.from('friendships')
           .select('id, status, requester_id, addressee_id')
           .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
@@ -53,7 +53,7 @@ export default function ProfilePage() {
         supabase.from('group_members').select('group_id').eq('user_id', profileId),
       ])
 
-      if (!prof) { router.push('/'); return }
+      if (!prof) { router.back(); return }
       setProfile(prof as Profile)
 
       if (friendship) {
