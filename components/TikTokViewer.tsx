@@ -175,7 +175,7 @@ export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) 
       </div>
 
       {/* Top bar */}
-      <div className="absolute top-5 inset-x-0 z-10 flex items-center justify-between px-4 pt-3">
+      <div className="absolute top-5 inset-x-0 z-20 flex items-center justify-between px-4 pt-3">
         <div>
           {item.group_name && (
             <p className="text-white font-semibold text-sm drop-shadow">{item.group_name}</p>
