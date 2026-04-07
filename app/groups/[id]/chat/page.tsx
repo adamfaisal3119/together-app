@@ -12,12 +12,12 @@ interface Message {
   content: string
   created_at: string
   user_id: string
-  profiles: { full_name: string | null } | null
+  profiles: { full_name: string | null; avatar_url?: string | null } | null
 }
 
 function normalise(m: {
   id: string; content: string; created_at: string; user_id: string
-  profiles: { full_name: string | null } | { full_name: string | null }[] | null
+  profiles: { full_name: string | null; avatar_url?: string | null } | { full_name: string | null; avatar_url?: string | null }[] | null
 }): Message {
   return {
     id: m.id,
@@ -55,7 +55,7 @@ export default function ChatPage() {
     setLoadingMore(true)
     const { data } = await supabase
       .from('messages')
-      .select('id, content, created_at, user_id, profiles(full_name)')
+      .select('id, content, created_at, user_id, profiles(full_name, avatar_url)')
       .eq('group_id', groupId)
       .lt('created_at', before)
       .order('created_at', { ascending: false })
@@ -89,7 +89,7 @@ export default function ChatPage() {
 
       const { data } = await supabase
         .from('messages')
-        .select('id, content, created_at, user_id, profiles(full_name)')
+        .select('id, content, created_at, user_id, profiles(full_name, avatar_url)')
         .eq('group_id', groupId)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE)
@@ -343,9 +343,12 @@ export default function ChatPage() {
             >
               <div className="flex items-end gap-2">
                 {!isMe && (
-                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {message.profiles?.full_name?.[0]?.toUpperCase() || '?'}
-                  </div>
+                  message.profiles?.avatar_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={message.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                    : <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {message.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+                      </div>
                 )}
                 <div>
                   <div className={`max-w-xs md:max-w-md px-4 py-3 rounded-2xl text-sm leading-relaxed ${

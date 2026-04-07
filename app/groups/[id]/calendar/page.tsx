@@ -35,7 +35,7 @@ interface Comment {
   content: string
   created_at: string
   user_id: string
-  profiles: { full_name: string | null; username: string | null } | null
+  profiles: { full_name: string | null; username: string | null; avatar_url?: string | null } | null
 }
 
 interface PersonalEvent {
@@ -249,11 +249,11 @@ export default function CalendarPage() {
 
       const uids = [...new Set(commentData.map((c: { user_id: string }) => c.user_id))]
       const { data: profileRows } = uids.length > 0
-        ? await supabase.from('profiles').select('id, full_name, username').in('id', uids)
+        ? await supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', uids)
         : { data: [] }
       const profileMap = Object.fromEntries(
-        (profileRows || []).map((p: { id: string; full_name: string | null; username: string | null }) => [
-          p.id, { full_name: p.full_name, username: p.username }
+        (profileRows || []).map((p: { id: string; full_name: string | null; username: string | null; avatar_url: string | null }) => [
+          p.id, { full_name: p.full_name, username: p.username, avatar_url: p.avatar_url }
         ])
       )
 
@@ -1096,9 +1096,13 @@ export default function CalendarPage() {
                                 )}
                                 {eventComments.map(c => (
                                   <div key={c.id} className="flex gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
-                                      {c.profiles?.full_name?.[0]?.toUpperCase() || '?'}
-                                    </div>
+                                    {c.profiles?.avatar_url
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      ? <img src={c.profiles.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5" />
+                                      : <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                                          {c.profiles?.full_name?.[0]?.toUpperCase() || '?'}
+                                        </div>
+                                    }
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xs font-semibold text-fg">
