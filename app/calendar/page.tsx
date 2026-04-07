@@ -46,7 +46,17 @@ export default function PersonalCalendarPage() {
       .select('*')
       .eq('user_id', userId)
       .order('start_time', { ascending: true })
-    if (data) setEvents(data as PersonalEvent[])
+    if (data) {
+      // Deduplicate by title + start_time in case DB triggers created multiple rows
+      const seen = new Set<string>()
+      const deduped = (data as PersonalEvent[]).filter(e => {
+        const key = `${e.title}|${e.start_time}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      setEvents(deduped)
+    }
   }, [supabase])
 
   useEffect(() => {

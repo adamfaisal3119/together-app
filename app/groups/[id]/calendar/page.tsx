@@ -428,7 +428,7 @@ export default function CalendarPage() {
     setCreating(true)
     setFormError('')
 
-    const { data: newEvent, error } = await supabase.from('events').insert({
+    const { error } = await supabase.from('events').insert({
       group_id: groupId,
       created_by: user?.id,
       title: title.trim(),
@@ -438,19 +438,11 @@ export default function CalendarPage() {
       end_time: endTime ? new Date(endTime).toISOString() : null,
       location: location.trim() || null,
       is_invite: isInvite,
-    }).select('id').single()
+    })
 
     if (error) {
       setFormError('Failed to create event: ' + error.message)
     } else {
-      // Creator is automatically going
-      if (isInvite && newEvent && user) {
-        await supabase.from('event_rsvps').insert({
-          event_id: newEvent.id,
-          user_id: user.id,
-          status: 'accepted',
-        })
-      }
       setTitle('')
       setDescription('')
       setEventType('general')

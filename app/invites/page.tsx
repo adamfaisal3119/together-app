@@ -48,9 +48,10 @@ export default function InvitesPage() {
     since.setDate(since.getDate() - 7) // show up to 7 days past
     const { data: eventsData } = await supabase
       .from('events')
-      .select('id, title, description, event_type, start_time, end_time, location, group_id')
+      .select('id, title, description, event_type, start_time, end_time, location, group_id, created_by')
       .in('group_id', groupIds)
       .eq('is_invite', true)
+      .neq('created_by', userId)
       .gte('start_time', since.toISOString())
       .order('start_time', { ascending: true })
 
