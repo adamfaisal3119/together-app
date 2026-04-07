@@ -199,7 +199,7 @@ export default function DMPage() {
   )
 
   return (
-    <main className="min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0 page-enter">
+    <main className="bg-base text-fg flex flex-col page-enter" style={{ height: '100dvh' }}>
       <nav className="border-b border-edge-dim px-5 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => router.push('/friends')}
@@ -262,7 +262,7 @@ export default function DMPage() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-edge-dim px-5 py-3 shrink-0">
+      <div className="border-t border-edge-dim px-5 pt-3 shrink-0" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
         <div className="flex gap-3 items-end">
           <textarea
             value={newMessage}
@@ -270,7 +270,8 @@ export default function DMPage() {
             onKeyDown={handleKeyDown}
             placeholder={`Message ${friendName}…`}
             rows={1}
-            className="flex-1 px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-base"
+            style={{ fontSize: '16px' }}
+            className="flex-1 px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint"
           />
           <button
             onClick={sendMessage}
