@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(true)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -43,11 +45,13 @@ export default function SettingsPage() {
       if (!user) { router.push('/login'); return }
       setUser(user)
       const { data: profile } = await supabase
-        .from('profiles').select('full_name, username, avatar_url').eq('id', user.id).single()
+        .from('profiles').select('full_name, username, avatar_url, bio, location').eq('id', user.id).single()
       if (profile) {
         setFullName(profile.full_name || '')
         setUsername(profile.username || '')
         setAvatarUrl(profile.avatar_url || null)
+        setBio(profile.bio || '')
+        setLocation(profile.location || '')
       }
       setLoading(false)
     }
@@ -60,7 +64,7 @@ export default function SettingsPage() {
     setMessage(null)
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: fullName.trim(), username: username.trim() })
+      .update({ full_name: fullName.trim(), username: username.trim(), bio: bio.trim() || null, location: location.trim() || null })
       .eq('id', user.id)
     setMessage(error
       ? { text: 'Failed to save: ' + error.message, ok: false }
@@ -244,6 +248,19 @@ export default function SettingsPage() {
                   onChange={e => setUsername(e.target.value)}
                   className="w-full pl-8 pr-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm" />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-fg-muted mb-1.5 block">Location</label>
+              <input type="text" placeholder="e.g. London, UK" value={location}
+                onChange={e => setLocation(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-fg-muted mb-1.5 block">Bio</label>
+              <textarea placeholder="A little about you…" value={bio}
+                onChange={e => setBio(e.target.value)}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent placeholder:text-fg-faint text-sm resize-none" />
             </div>
             {message && (
               <p className={`text-sm ${message.ok ? 'text-accent-lt' : 'text-rose-400'}`}>{message.text}</p>

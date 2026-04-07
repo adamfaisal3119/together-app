@@ -248,13 +248,13 @@ export default function FriendsPage() {
                   <p className="text-center py-8 text-fg-muted text-sm">No friends match &ldquo;{friendFilter}&rdquo;</p>
                 ) : filtered.map((f, i) => (
                   <div key={f.id} className={`flex items-center justify-between px-5 py-4 hover:bg-elevated transition-colors ${i < filtered.length - 1 ? 'border-b border-edge-dim' : ''}`}>
-                    <div className="flex items-center gap-3">
+                    <button className="flex items-center gap-3 text-left" onClick={() => router.push(`/profile/${f.friend.id}`)}>
                       <Avatar profile={f.friend} />
                       <div>
                         <p className="font-medium text-fg text-sm">{f.friend.full_name || f.friend.username}</p>
                         <p className="text-fg-muted text-xs">@{f.friend.username}</p>
                       </div>
-                    </div>
+                    </button>
                     <button onClick={() => router.push(`/dm/${f.friend.id}`)}
                       className="relative px-3 py-1.5 bg-elevated hover:bg-accent hover:text-white active:scale-95 text-fg-muted rounded-xl text-xs font-semibold transition-all">
                       Message
