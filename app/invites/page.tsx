@@ -204,14 +204,14 @@ export default function InvitesPage() {
                         disabled={responding === rsvp.id}
                         className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
                       >
-                        {responding === rsvp.id ? '…' : '✅ Accept'}
+                        {responding === rsvp.id ? '…' : 'Accept'}
                       </button>
                       <button
                         onClick={() => respond(rsvp, 'declined')}
                         disabled={responding === rsvp.id}
                         className="flex-1 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
                       >
-                        {responding === rsvp.id ? '…' : '❌ Decline'}
+                        {responding === rsvp.id ? '…' : 'Decline'}
                       </button>
                     </div>
                   </div>
@@ -252,7 +252,7 @@ export default function InvitesPage() {
                         ? 'bg-emerald-500/20 text-emerald-500'
                         : 'bg-rose-500/20 text-rose-400'
                     }`}>
-                      {rsvp.status === 'accepted' ? '✅ Accepted' : '❌ Declined'}
+                      {rsvp.status === 'accepted' ? 'Accepted' : 'Declined'}
                     </span>
                   </div>
                 )

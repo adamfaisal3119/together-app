@@ -22,12 +22,15 @@ export default function MemoriesPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [caption, setCaption] = useState('')
-  const [selected, setSelected] = useState<Memory | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const touchStartX = useRef<number | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
+
+  const selected = selectedIndex !== null ? memories[selectedIndex] ?? null : null
 
   const fetchMemories = useCallback(async () => {
     const { data } = await supabase
@@ -69,6 +72,18 @@ export default function MemoriesPage() {
     load()
   }, [supabase, router, groupId, fetchMemories])
 
+  // Keyboard navigation
+  useEffect(() => {
+    if (selectedIndex === null) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') setSelectedIndex(i => i !== null ? Math.min(i + 1, memories.length - 1) : null)
+      if (e.key === 'ArrowLeft') setSelectedIndex(i => i !== null ? Math.max(i - 1, 0) : null)
+      if (e.key === 'Escape') setSelectedIndex(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedIndex, memories.length])
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
@@ -100,7 +115,7 @@ export default function MemoriesPage() {
 
   const deleteMemory = async (memory: Memory) => {
     await supabase.from('memories').delete().eq('id', memory.id)
-    setSelected(null)
+    setSelectedIndex(null)
     await fetchMemories()
   }
 
@@ -108,6 +123,18 @@ export default function MemoriesPage() {
     new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 
   const isVideo = (m: Memory) => m.file_type === 'video'
+
+  const goNext = () => setSelectedIndex(i => i !== null ? Math.min(i + 1, memories.length - 1) : null)
+  const goPrev = () => setSelectedIndex(i => i !== null ? Math.max(i - 1, 0) : null)
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    if (dx < -50) goNext()
+    else if (dx > 50) goPrev()
+    touchStartX.current = null
+  }
 
   if (loading) return (
     <main className="min-h-screen bg-base text-fg pb-24 page-enter">
@@ -123,7 +150,6 @@ export default function MemoriesPage() {
           ))}
         </div>
       </div>
-
     </main>
   )
 
@@ -162,8 +188,8 @@ export default function MemoriesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-1.5">
-            {memories.map(memory => (
-              <button key={memory.id} onClick={() => setSelected(memory)}
+            {memories.map((memory, index) => (
+              <button key={memory.id} onClick={() => setSelectedIndex(index)}
                 className="relative aspect-square rounded-xl overflow-hidden bg-elevated group">
                 {isVideo(memory) ? (
                   <video src={memory.file_url} className="w-full h-full object-cover" muted />
@@ -189,37 +215,89 @@ export default function MemoriesPage() {
         )}
       </div>
 
-      {selected && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex flex-col" onClick={() => setSelected(null)}>
-          <div className="flex-1 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+      {/* Lightbox */}
+      {selected && selectedIndex !== null && (
+        <div
+          className="fixed inset-0 bg-black/92 z-50 flex flex-col"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+            <span className="text-white/50 text-sm">{selectedIndex + 1} / {memories.length}</span>
+            <button
+              onClick={() => setSelectedIndex(null)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Media area */}
+          <div className="flex-1 flex items-center justify-center relative min-h-0 px-12">
+            {/* Prev */}
+            {selectedIndex > 0 && (
+              <button
+                onClick={goPrev}
+                className="absolute left-2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+
             {isVideo(selected) ? (
-              <video src={selected.file_url} controls autoPlay className="max-w-full max-h-full rounded-2xl" />
+              <video
+                key={selected.id}
+                src={selected.file_url}
+                controls
+                autoPlay
+                className="max-w-full max-h-full rounded-2xl"
+              />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={selected.file_url} alt={selected.caption || ''} className="max-w-full max-h-full rounded-2xl object-contain" />
+              <img
+                key={selected.id}
+                src={selected.file_url}
+                alt={selected.caption || ''}
+                className="max-w-full max-h-full rounded-2xl object-contain"
+                onClick={() => setSelectedIndex(null)}
+              />
+            )}
+
+            {/* Next */}
+            {selectedIndex < memories.length - 1 && (
+              <button
+                onClick={goNext}
+                className="absolute right-2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+              >
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             )}
           </div>
-          <div className="bg-surface/95 backdrop-blur-md border-t border-edge-dim px-5 py-5" onClick={e => e.stopPropagation()}>
+
+          {/* Bottom info */}
+          <div className="shrink-0 px-5 py-4">
             <div className="max-w-lg mx-auto">
-              {selected.caption && <p className="text-fg font-medium mb-1">{selected.caption}</p>}
-              <p className="text-fg-faint text-xs">{selected.uploader_name} · {formatDate(selected.created_at)}</p>
-              <div className="flex gap-3 mt-3">
-                <button onClick={() => setSelected(null)}
-                  className="flex-1 py-2.5 border border-edge text-fg-muted hover:text-fg rounded-xl text-sm transition-colors">
-                  Close
+              {selected.caption && <p className="text-white font-medium mb-1 text-sm">{selected.caption}</p>}
+              <p className="text-white/50 text-xs">{selected.uploader_name} · {formatDate(selected.created_at)}</p>
+              {selected.uploaded_by === user?.id && (
+                <button
+                  onClick={() => deleteMemory(selected)}
+                  className="mt-3 px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  Delete
                 </button>
-                {selected.uploaded_by === user?.id && (
-                  <button onClick={() => deleteMemory(selected)}
-                    className="flex-1 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors">
-                    Delete
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
-
     </main>
   )
 }

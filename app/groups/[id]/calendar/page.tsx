@@ -843,11 +843,11 @@ export default function CalendarPage() {
                               {/* RSVP counts */}
                               {event.is_invite && rsvp && (
                                 <div className="flex gap-3 mb-3">
-                                  <span className="text-xs text-emerald-500 font-medium">✅ {rsvp.accepted} going</span>
+                                  <span className="text-xs text-emerald-500 font-medium">{rsvp.accepted} going</span>
                                   <span className="text-xs text-fg-faint">·</span>
-                                  <span className="text-xs text-rose-400 font-medium">❌ {rsvp.declined} declined</span>
+                                  <span className="text-xs text-rose-400 font-medium">{rsvp.declined} declined</span>
                                   <span className="text-xs text-fg-faint">·</span>
-                                  <span className="text-xs text-fg-muted font-medium">⏳ {rsvp.pending} pending</span>
+                                  <span className="text-xs text-fg-muted font-medium">{rsvp.pending} pending</span>
                                 </div>
                               )}
 
@@ -874,7 +874,7 @@ export default function CalendarPage() {
                                   onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
                                   className="ml-auto flex items-center gap-1 text-xs text-fg-faint hover:text-fg transition-colors px-2 py-1"
                                 >
-                                  💬 {eventComments.length > 0 ? eventComments.length : ''} {isExpanded ? 'Hide' : 'Comment'}
+                                  {eventComments.length > 0 ? eventComments.length : ''} {isExpanded ? 'Hide' : 'Comment'}
                                 </button>
                               </div>
                             </div>
