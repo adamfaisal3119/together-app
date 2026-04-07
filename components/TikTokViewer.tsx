@@ -51,6 +51,7 @@ function VideoSlide({ url }: { url: string }) {
 }
 
 export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) {
+  const [mounted, setMounted] = useState(false)
   const [index, setIndex] = useState(startIndex)
   const [likes, setLikes] = useState<{ count: number; liked: boolean }>({ count: 0, liked: false })
   const [comments, setComments] = useState<Comment[]>([])
@@ -81,6 +82,9 @@ export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) 
     return () => window.removeEventListener('keydown', onKey)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose])
+
+  // Mount flag for portal
+  useEffect(() => { setMounted(true) }, [])
 
   // Get current user
   useEffect(() => {
@@ -145,7 +149,7 @@ export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) 
     setSubmitting(false)
   }
 
-  if (!item) return null
+  if (!item || !mounted) return null
 
   return createPortal(
     <div
