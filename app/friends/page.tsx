@@ -67,11 +67,15 @@ export default function FriendsPage() {
       .select('id, status, requester_id, addressee_id')
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
     if (!data) return
-    const enriched = await Promise.all(data.map(async f => {
+    // Batch all profile lookups in one query instead of N individual requests
+    const friendIds = data.map(f => f.requester_id === userId ? f.addressee_id : f.requester_id)
+    const { data: profiles } = await supabase
+      .from('profiles').select('id, full_name, username').in('id', friendIds)
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+    const enriched = data.map(f => {
       const friendId = f.requester_id === userId ? f.addressee_id : f.requester_id
-      const { data: profile } = await supabase.from('profiles').select('id, full_name, username').eq('id', friendId).single()
-      return { ...f, friend: profile as Profile }
-    }))
+      return { ...f, friend: profileMap[friendId] as Profile }
+    })
     const accepted = enriched.filter(f => f.status === 'accepted')
     setFriends(accepted)
     setPending(enriched.filter(f => f.status === 'pending' && f.addressee_id === userId))

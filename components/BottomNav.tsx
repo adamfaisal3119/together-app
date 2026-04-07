@@ -84,7 +84,9 @@ export default function BottomNav() {
       setPendingCount(count ?? 0)
     }
     fetchPending()
-  }, [supabase, pathname])
+  // Only re-fetch when landing on or leaving the invites page
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, pathname === '/invites'])
 
   const isChat = CHAT_ROUTES.some(r => pathname.includes(r))
   const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
