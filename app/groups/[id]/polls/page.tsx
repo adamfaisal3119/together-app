@@ -4,11 +4,18 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
+interface Voter {
+  id: string
+  name: string
+  avatar_url: string | null
+}
+
 interface PollOption {
   id: string
   text: string
   votes: number
   voted: boolean
+  voters: Voter[]
 }
 
 interface Poll {
@@ -65,10 +72,26 @@ export default function PollsPage() {
         .select('option_id, user_id')
         .in('option_id', (optionData || []).map((o: { id: string }) => o.id))
 
+      // Batch profile lookup for all voters
+      const voterIds = [...new Set((voteData || []).map((v: { user_id: string }) => v.user_id))]
+      const { data: voterProfiles } = voterIds.length > 0
+        ? await supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', voterIds)
+        : { data: [] }
+      const profileMap = Object.fromEntries(
+        (voterProfiles || []).map((p: { id: string; full_name: string | null; username: string | null; avatar_url: string | null }) => [
+          p.id, { name: p.full_name || p.username || 'Unknown', avatar_url: p.avatar_url }
+        ])
+      )
+
       const options: PollOption[] = (optionData || []).map((o: { id: string; text: string }) => {
-        const votes = (voteData || []).filter((v: { option_id: string }) => v.option_id === o.id).length
-        const voted = (voteData || []).some((v: { option_id: string; user_id: string }) => v.option_id === o.id && v.user_id === userId)
-        return { id: o.id, text: o.text, votes, voted }
+        const optionVotes = (voteData || []).filter((v: { option_id: string }) => v.option_id === o.id)
+        const voted = optionVotes.some((v: { user_id: string }) => v.user_id === userId)
+        const voters: Voter[] = optionVotes.map((v: { user_id: string }) => ({
+          id: v.user_id,
+          name: profileMap[v.user_id]?.name ?? 'Unknown',
+          avatar_url: profileMap[v.user_id]?.avatar_url ?? null,
+        }))
+        return { id: o.id, text: o.text, votes: optionVotes.length, voted, voters }
       })
 
       const total_votes = options.reduce((sum, o) => sum + o.votes, 0)
@@ -149,7 +172,7 @@ export default function PollsPage() {
           return { ...opt, voted: true, votes: opt.voted ? opt.votes : opt.votes + 1 }
         }
         if (existingVote?.id === opt.id && opt.id !== optionId) {
-          return { ...opt, voted: false, votes: Math.max(0, opt.votes - 1) }
+          return { ...opt, voted: false, votes: Math.max(0, opt.votes - 1), voters: opt.voters.filter(v => v.id !== user?.id) }
         }
         return opt
       })
@@ -361,6 +384,24 @@ export default function PollsPage() {
                             <span className="text-xs text-fg-muted ml-2 shrink-0">{pct}%</span>
                           )}
                         </div>
+                        {userVoted && option.voters.length > 0 && (
+                          <div className="relative flex items-center gap-1.5 mt-2">
+                            <div className="flex -space-x-1.5">
+                              {option.voters.slice(0, 5).map(v => (
+                                v.avatar_url
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  ? <img key={v.id} src={v.avatar_url} alt={v.name} title={v.name} className="w-5 h-5 rounded-full object-cover ring-1 ring-base" />
+                                  : <div key={v.id} title={v.name} className="w-5 h-5 rounded-full bg-accent ring-1 ring-base flex items-center justify-center text-white text-[9px] font-bold">
+                                      {v.name[0]?.toUpperCase()}
+                                    </div>
+                              ))}
+                            </div>
+                            <span className="text-xs text-fg-faint">
+                              {option.voters.slice(0, 2).map(v => v.name.split(' ')[0]).join(', ')}
+                              {option.voters.length > 2 ? ` +${option.voters.length - 2}` : ''}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </button>
                   )
