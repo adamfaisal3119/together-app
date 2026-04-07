@@ -308,38 +308,48 @@ export default function PersonalCalendarPage() {
         )}
 
         {/* View toggle + navigation */}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
+        <div className="space-y-2">
+          {/* Row 1: Week/Month toggle + Today */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setView('week')}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                  view === 'week' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
+                }`}
+              >
+                Week
+              </button>
+              <button
+                onClick={() => setView('month')}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                  view === 'month' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
+                }`}
+              >
+                Month
+              </button>
+            </div>
             <button
-              onClick={() => setView('week')}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                view === 'week' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
-              }`}
+              onClick={() => setCurrentDate(new Date())}
+              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-sm text-fg-muted hover:text-fg transition-colors"
             >
-              Week
-            </button>
-            <button
-              onClick={() => setView('month')}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                view === 'month' ? 'bg-accent text-white' : 'bg-elevated text-fg-muted hover:text-fg'
-              }`}
-            >
-              Month
+              Today
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Row 2: ← date → always visible */}
+          <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => {
                 const d = new Date(currentDate)
-                view === 'week' ? d.setDate(d.getDate() - 7) : d.setMonth(d.getMonth() - 1)
+                if (view === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1)
                 setCurrentDate(d)
               }}
-              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors"
+              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors shrink-0"
             >
               ←
             </button>
-            <span className="text-sm font-semibold text-fg min-w-40 text-center">
+            <span className="text-sm font-semibold text-fg text-center flex-1">
               {view === 'week'
                 ? `${getWeekStart(currentDate).toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`
                 : currentDate.toLocaleDateString([], { month: 'long', year: 'numeric' })
@@ -348,21 +358,14 @@ export default function PersonalCalendarPage() {
             <button
               onClick={() => {
                 const d = new Date(currentDate)
-                view === 'week' ? d.setDate(d.getDate() + 7) : d.setMonth(d.getMonth() + 1)
+                if (view === 'week') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1)
                 setCurrentDate(d)
               }}
-              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors"
+              className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-fg transition-colors shrink-0"
             >
               →
             </button>
           </div>
-
-          <button
-            onClick={() => setCurrentDate(new Date())}
-            className="px-3 py-2 bg-elevated hover:bg-edge rounded-xl text-sm text-fg-muted hover:text-fg transition-colors"
-          >
-            Today
-          </button>
         </div>
 
         {/* WEEK VIEW */}
