@@ -939,7 +939,7 @@ export default function CalendarPage() {
                         const eventComments = comments[event.id] || []
                         const isExpanded = expandedEventId === event.id
                         return (
-                          <div key={event.id} className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
+                          <div key={event.id} className="bg-surface rounded-2xl border border-edge-dim overflow-visible">
                             {/* Main card */}
                             <div className="p-5">
                               <div className="flex items-start justify-between mb-3">
