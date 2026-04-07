@@ -39,7 +39,10 @@ export default function OnboardingPage() {
         return
       }
 
-      if (profile?.full_name) setFullName(profile.full_name)
+      // Only pre-fill full_name if it's not an email (some triggers set it to the signup email)
+      if (profile?.full_name && !profile.full_name.includes('@')) {
+        setFullName(profile.full_name)
+      }
       setLoading(false)
     }
     load()
@@ -144,6 +147,13 @@ export default function OnboardingPage() {
             </div>
 
             <div className="bg-surface rounded-2xl border border-edge-dim p-6 space-y-4 mb-6">
+              <div>
+                <label className="text-xs font-medium text-fg-muted mb-1.5 block">Email</label>
+                <div className="w-full px-4 py-3 rounded-xl bg-elevated text-fg-muted border border-edge text-sm select-none">
+                  {user?.email}
+                </div>
+              </div>
+
               <div>
                 <label className="text-sm text-fg-muted mb-1 block">Full name</label>
                 <input

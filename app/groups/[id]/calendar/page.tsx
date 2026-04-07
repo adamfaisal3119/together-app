@@ -88,6 +88,8 @@ export default function CalendarPage() {
 
   // RSVP, reactions, comments per event
   const [rsvpCounts, setRsvpCounts] = useState<Record<string, RsvpCounts>>({})
+  const [myRsvps, setMyRsvps] = useState<Record<string, { id: string; status: string }>>({})
+  const [rsvpResponding, setRsvpResponding] = useState<string | null>(null)
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({})
   const [comments, setComments] = useState<Record<string, Comment[]>>({})
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
@@ -166,6 +168,21 @@ export default function CalendarPage() {
       setRsvpCounts(counts)
     }
 
+    // Current user's own RSVP per event
+    const { data: myRsvpData } = await supabase
+      .from('event_rsvps')
+      .select('id, event_id, status')
+      .eq('user_id', userId)
+      .in('event_id', eventIds)
+
+    if (myRsvpData) {
+      const mine: Record<string, { id: string; status: string }> = {}
+      myRsvpData.forEach((r: { id: string; event_id: string; status: string }) => {
+        mine[r.event_id] = { id: r.id, status: r.status }
+      })
+      setMyRsvps(mine)
+    }
+
     // Reactions per event
     const { data: reactionData } = await supabase
       .from('event_reactions')
@@ -237,6 +254,31 @@ export default function CalendarPage() {
       }
       return { ...prev, [eventId]: eventReactions }
     })
+  }
+
+  const respondToEvent = async (eventId: string, status: 'accepted' | 'declined') => {
+    if (!user) return
+    setRsvpResponding(eventId)
+    const existing = myRsvps[eventId]
+    if (existing) {
+      await supabase.from('event_rsvps').update({ status }).eq('id', existing.id)
+    } else {
+      await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status })
+    }
+    // Optimistic update
+    setMyRsvps(prev => ({ ...prev, [eventId]: { id: existing?.id || '', status } }))
+    setRsvpCounts(prev => {
+      const c = { ...prev[eventId] }
+      if (existing) {
+        if (existing.status === 'accepted') c.accepted = Math.max(0, c.accepted - 1)
+        else if (existing.status === 'declined') c.declined = Math.max(0, c.declined - 1)
+        else c.pending = Math.max(0, c.pending - 1)
+      }
+      if (status === 'accepted') c.accepted++
+      else c.declined++
+      return { ...prev, [eventId]: c }
+    })
+    setRsvpResponding(null)
   }
 
   const submitComment = async (eventId: string) => {
@@ -839,6 +881,50 @@ export default function CalendarPage() {
                                 </div>
                                 <span className="text-xs bg-elevated text-fg-muted px-3 py-1 rounded-full shrink-0 ml-3">{type.label}</span>
                               </div>
+
+                              {/* RSVP buttons */}
+                              {event.is_invite && (() => {
+                                const myRsvp = myRsvps[event.id]
+                                const responding = rsvpResponding === event.id
+                                if (!myRsvp || myRsvp.status === 'pending') {
+                                  return (
+                                    <div className="flex gap-2 mb-3">
+                                      <button
+                                        onClick={() => respondToEvent(event.id, 'accepted')}
+                                        disabled={responding}
+                                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                                      >
+                                        {responding ? '…' : 'Accept'}
+                                      </button>
+                                      <button
+                                        onClick={() => respondToEvent(event.id, 'declined')}
+                                        disabled={responding}
+                                        className="flex-1 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+                                      >
+                                        {responding ? '…' : 'Decline'}
+                                      </button>
+                                    </div>
+                                  )
+                                }
+                                return (
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                                      myRsvp.status === 'accepted'
+                                        ? 'bg-emerald-500/15 text-emerald-400'
+                                        : 'bg-rose-500/15 text-rose-400'
+                                    }`}>
+                                      {myRsvp.status === 'accepted' ? 'Going' : 'Declined'}
+                                    </span>
+                                    <button
+                                      onClick={() => respondToEvent(event.id, myRsvp.status === 'accepted' ? 'declined' : 'accepted')}
+                                      disabled={responding}
+                                      className="text-xs text-fg-faint hover:text-fg underline transition-colors disabled:opacity-50"
+                                    >
+                                      Change
+                                    </button>
+                                  </div>
+                                )
+                              })()}
 
                               {/* RSVP counts */}
                               {event.is_invite && rsvp && (

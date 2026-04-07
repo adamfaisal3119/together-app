@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState, useMemo } from 'react'
+import { createClient } from '@/lib/supabase'
 
 function HomeIcon({ active }: { active: boolean }) {
   return (
@@ -37,6 +39,15 @@ function FriendsIcon({ active }: { active: boolean }) {
   )
 }
 
+function InvitesIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M2 7l10 7 10-7" />
+    </svg>
+  )
+}
+
 function SettingsIcon({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -49,6 +60,7 @@ function SettingsIcon({ active }: { active: boolean }) {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon },
   { href: '/groups', label: 'Groups', Icon: GroupsIcon },
+  { href: '/invites', label: 'Invites', Icon: InvitesIcon },
   { href: '/friends', label: 'Friends', Icon: FriendsIcon },
   { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ]
@@ -57,6 +69,22 @@ const CHAT_ROUTES = ['/chat', '/dm/']
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const supabase = useMemo(() => createClient(), [])
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('event_rsvps')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+      setPendingCount(count ?? 0)
+    }
+    fetchPending()
+  }, [supabase, pathname])
 
   const isChat = CHAT_ROUTES.some(r => pathname.includes(r))
   const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
@@ -68,11 +96,11 @@ export default function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Bottom navigation"
     >
-      {/* Elevated bar with blur + border + shadow */}
       <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">
         <div className="flex items-center justify-around px-1 max-w-lg mx-auto">
           {NAV_ITEMS.map(({ href, label, Icon }) => {
             const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+            const showBadge = href === '/invites' && pendingCount > 0
             return (
               <Link
                 key={href}
@@ -84,7 +112,12 @@ export default function BottomNav() {
               >
                 <div className="relative">
                   <Icon active={active} />
-                  {active && (
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-1.5 min-w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                      {pendingCount > 9 ? '9+' : pendingCount}
+                    </span>
+                  )}
+                  {active && !showBadge && (
                     <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
                   )}
                 </div>
