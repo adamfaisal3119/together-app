@@ -368,43 +368,63 @@ export default function PersonalCalendarPage() {
           </div>
         </div>
 
-        {/* WEEK VIEW */}
+        {/* WEEK VIEW — vertical day list, mobile-friendly */}
         {view === 'week' && (
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="space-y-2">
             {weekDays.map((day, i) => {
               const isToday = day.toDateString() === today.toDateString()
               const dayEvents = getEventsForDay(day)
               return (
                 <div
                   key={i}
-                  className={`rounded-2xl border p-2 min-h-40 ${
-                    isToday ? 'border-accent bg-accent-bg' : 'border-edge-dim bg-surface'
+                  className={`rounded-2xl border overflow-hidden ${
+                    isToday ? 'border-accent' : 'border-edge-dim'
                   }`}
                 >
-                  <p className={`text-xs font-semibold text-center mb-2 ${
-                    isToday ? 'text-accent-lt' : 'text-fg-muted'
+                  <div className={`flex items-start gap-4 px-4 py-3 ${
+                    isToday ? 'bg-accent-bg' : 'bg-surface'
                   }`}>
-                    {DAYS[day.getDay()]}
-                    <br />
-                    <span className={`text-base ${isToday ? 'text-accent-lt' : 'text-fg'}`}>
-                      {day.getDate()}
-                    </span>
-                  </p>
-                  <div className="space-y-1">
-                    {dayEvents.map(event => (
-                      <div
-                        key={event.id}
-                        onClick={() => setSelectedEvent(event)}
-                        className={`text-xs rounded-lg px-1.5 py-1 cursor-pointer ${
-                          event.show_as === 'busy'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            : 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30'
-                        }`}
-                      >
-                        <p className="font-medium truncate">{event.title}</p>
-                        <p className="opacity-70">{formatTime(event.start_time)}</p>
-                      </div>
-                    ))}
+                    {/* Day label */}
+                    <div className="w-10 shrink-0 text-center pt-0.5">
+                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${
+                        isToday ? 'text-accent-lt' : 'text-fg-faint'
+                      }`}>
+                        {DAYS[day.getDay()]}
+                      </p>
+                      <p className={`text-2xl font-bold leading-tight ${
+                        isToday ? 'text-accent-lt' : 'text-fg'
+                      }`}>
+                        {day.getDate()}
+                      </p>
+                    </div>
+
+                    {/* Events */}
+                    <div className="flex-1 min-w-0 space-y-1.5 py-0.5">
+                      {dayEvents.length === 0 ? (
+                        <p className="text-sm text-fg-faint py-1.5">No events</p>
+                      ) : dayEvents.map(event => (
+                        <div
+                          key={event.id}
+                          onClick={() => setSelectedEvent(event)}
+                          className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
+                            event.show_as === 'busy'
+                              ? 'bg-rose-500/15 border border-rose-500/25 hover:bg-rose-500/25'
+                              : 'bg-emerald-500/15 border border-emerald-500/25 hover:bg-emerald-500/25'
+                          }`}
+                        >
+                          <p className={`font-semibold text-sm truncate ${
+                            event.show_as === 'busy' ? 'text-rose-400' : 'text-emerald-500'
+                          }`}>
+                            {event.title}
+                          </p>
+                          <p className={`text-xs shrink-0 ${
+                            event.show_as === 'busy' ? 'text-rose-400/70' : 'text-emerald-500/70'
+                          }`}>
+                            {formatTime(event.start_time)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )
