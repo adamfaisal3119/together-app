@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 
 export interface TikTokItem {
@@ -146,10 +147,10 @@ export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) 
 
   if (!item) return null
 
-  return (
+  return createPortal(
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black flex flex-col"
+      className="fixed inset-0 z-9999 bg-black flex flex-col"
       onTouchStart={e => { touchStartY.current = e.touches[0].clientY }}
       onTouchEnd={e => {
         if (touchStartY.current === null) return
@@ -284,6 +285,7 @@ export default function TikTokViewer({ items, startIndex = 0, onClose }: Props) 
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
