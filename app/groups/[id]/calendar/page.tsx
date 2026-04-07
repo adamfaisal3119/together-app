@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 
 interface Event {
   id: string
@@ -466,7 +465,7 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
-      <BottomNav />
+
     </main>
   )
 }
@@ -1027,7 +1026,7 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
-      <BottomNav />
+
     </main>
   )
 }

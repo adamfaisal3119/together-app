@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import { SkeletonCard } from '@/components/Skeleton'
 
 interface Group {
@@ -98,7 +97,7 @@ export default function GroupsPage() {
         <div className="h-7 w-40 bg-elevated animate-pulse rounded-lg mb-6" />
         {[1, 2, 3].map(i => <SkeletonCard key={i} />)}
       </div>
-      <BottomNav />
+
     </main>
   )
 
@@ -201,7 +200,7 @@ export default function GroupsPage() {
           </div>
         )}
       </div>
-      <BottomNav />
+
     </main>
   )
 }

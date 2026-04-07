@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import { SkeletonPage } from '@/components/Skeleton'
 import { THEME_PRESETS, BG_PRESETS, type ThemeAccent, type BgStyle } from '@/lib/themes'
 import { applyAccent, applyBg, useTheme } from '@/lib/theme-context'
@@ -144,7 +143,7 @@ export default function SettingsPage() {
         <div className="h-5 w-24 bg-elevated animate-pulse rounded" />
       </nav>
       <SkeletonPage />
-      <BottomNav />
+
     </main>
   )
 
@@ -291,7 +290,7 @@ export default function SettingsPage() {
         </div>
 
       </div>
-      <BottomNav />
+
     </main>
   )
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 import { SkeletonRow } from '@/components/Skeleton'
 
 interface Profile {
@@ -127,7 +126,7 @@ export default function FriendsPage() {
           {[1, 2, 3].map(i => <SkeletonRow key={i} />)}
         </div>
       </div>
-      <BottomNav />
+
     </main>
   )
 
@@ -302,7 +301,7 @@ export default function FriendsPage() {
           )
         )}
       </div>
-      <BottomNav />
+
     </main>
   )
 }

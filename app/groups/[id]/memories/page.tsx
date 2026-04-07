@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 
 interface Memory {
   id: string
@@ -124,7 +123,7 @@ export default function MemoriesPage() {
           ))}
         </div>
       </div>
-      <BottomNav />
+
     </main>
   )
 
@@ -220,7 +219,7 @@ export default function MemoriesPage() {
           </div>
         </div>
       )}
-      <BottomNav />
+
     </main>
   )
 }

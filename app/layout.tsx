@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from '@/lib/theme-context'
 import { THEME_PRESETS, BG_PRESETS } from '@/lib/themes'
 import PageTransition from '@/components/PageTransition'
+import BottomNav from '@/components/BottomNav'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PageTransition>
             {children}
           </PageTransition>
+          <BottomNav />
         </ThemeProvider>
       </body>
     </html>

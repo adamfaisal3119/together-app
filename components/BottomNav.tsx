@@ -53,8 +53,14 @@ const NAV_ITEMS = [
   { href: '/settings', label: 'Settings', Icon: SettingsIcon },
 ]
 
+const CHAT_ROUTES = ['/chat', '/dm/']
+
 export default function BottomNav() {
   const pathname = usePathname()
+
+  const isChat = CHAT_ROUTES.some(r => pathname.includes(r))
+  const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
+  if (isChat || isAuth) return null
 
   return (
     <nav

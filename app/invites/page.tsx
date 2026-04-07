@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 
 interface RSVP {
   id: string
@@ -144,7 +143,7 @@ export default function InvitesPage() {
             </div>
           ))}
         </div>
-        <BottomNav />
+  
       </main>
     )
   }
@@ -262,7 +261,7 @@ export default function InvitesPage() {
           </div>
         )}
       </div>
-      <BottomNav />
+
     </main>
   )
 }

@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import NotificationBell from '@/components/NotificationBell'
-import BottomNav from '@/components/BottomNav'
 import { UpcomingEventsFeed, RecentMemoriesFeed } from '@/components/DashboardFeeds'
 
 const STAT_CARDS = [
@@ -216,7 +215,7 @@ export default function Dashboard() {
 
       </div>
 
-      <BottomNav />
+
     </main>
   )
 }

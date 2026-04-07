@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import BottomNav from '@/components/BottomNav'
 
 interface PersonalEvent {
   id: string
@@ -172,7 +171,7 @@ export default function PersonalCalendarPage() {
             ))}
           </div>
         </div>
-        <BottomNav />
+  
       </main>
     )
   }
@@ -511,7 +510,7 @@ export default function PersonalCalendarPage() {
         </div>
       )}
 
-      <BottomNav />
+
     </main>
   )
 }
