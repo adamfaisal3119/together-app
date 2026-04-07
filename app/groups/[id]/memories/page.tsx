@@ -170,7 +170,7 @@ export default function MemoriesPage() {
               <button key={memory.id} onClick={() => setSelectedIndex(index)}
                 className="relative aspect-square rounded-xl overflow-hidden bg-elevated group">
                 {memory.file_type === 'video' ? (
-                  <video src={memory.file_url} className="w-full h-full object-cover" muted />
+                  <video src={`${memory.file_url}#t=0.1`} preload="metadata" className="w-full h-full object-cover" muted playsInline />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={memory.file_url} alt={memory.caption || ''} className="w-full h-full object-cover" />
