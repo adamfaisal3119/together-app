@@ -45,6 +45,7 @@ interface PersonalEvent {
 
 interface Member {
   user_id: string
+  role: string
   profiles: { full_name: string | null } | null
 }
 
@@ -132,19 +133,39 @@ export default function CalendarPage() {
   const fetchMembers = useCallback(async () => {
     const { data } = await supabase
       .from('group_members')
-      .select('user_id, profiles(full_name)')
+      .select('user_id, role, profiles(full_name)')
       .eq('group_id', groupId)
     if (data) {
       const mapped: Member[] = data.map((m: {
         user_id: string
+        role: string
         profiles: { full_name: string | null } | { full_name: string | null }[] | null
       }) => ({
         user_id: m.user_id,
+        role: m.role,
         profiles: Array.isArray(m.profiles) ? m.profiles[0] ?? null : m.profiles
       }))
       setMembers(mapped)
     }
   }, [supabase, groupId])
+
+  const isAdmin = members.some(m => m.user_id === user?.id && m.role === 'admin')
+
+  const deleteComment = async (commentId: string, eventId: string) => {
+    if (!user || !isAdmin) return
+    const { error } = await supabase
+      .from('event_comments')
+      .update({ content: '-deleted by admin' })
+      .eq('id', commentId)
+    if (!error) {
+      setComments(prev => ({
+        ...prev,
+        [eventId]: (prev[eventId] || []).map(c =>
+          c.id === commentId ? { ...c, content: '-deleted by admin' } : c
+        )
+      }))
+    }
+  }
 
   const fetchEventExtras = useCallback(async (eventIds: string[], userId: string) => {
     if (eventIds.length === 0) return
@@ -996,10 +1017,22 @@ export default function CalendarPage() {
                                       {c.profiles?.full_name?.[0]?.toUpperCase() || '?'}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-xs font-semibold text-fg mr-1.5">
-                                        {c.profiles?.full_name || c.profiles?.username || 'Unknown'}
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-semibold text-fg">
+                                          {c.profiles?.full_name || c.profiles?.username || 'Unknown'}
+                                        </span>
+                                        {isAdmin && c.content !== '-deleted by admin' && (
+                                          <button
+                                            onClick={() => deleteComment(c.id, event.id)}
+                                            className="text-[10px] text-rose-400 hover:text-rose-200 transition-colors"
+                                          >
+                                            Delete
+                                          </button>
+                                        )}
+                                      </div>
+                                      <span className={`text-xs ${c.content === '-deleted by admin' ? 'text-fg-faint italic' : 'text-fg-muted'}`}>
+                                        {c.content}
                                       </span>
-                                      <span className="text-xs text-fg-muted">{c.content}</span>
                                     </div>
                                   </div>
                                 ))}

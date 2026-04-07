@@ -56,6 +56,29 @@ alter table event_comments enable row level security;
 create policy "Anyone can view comments" on event_comments for select using (true);
 create policy "Auth users can comment" on event_comments for insert with check (auth.uid() = user_id);
 create policy "Owner can delete comment" on event_comments for delete using (auth.uid() = user_id);
+create policy "Owner or admin can update comment" on event_comments for update
+  using (
+    auth.uid() = user_id
+    OR exists (
+      select 1
+      from group_members gm
+      join events e on e.group_id = gm.group_id
+      where gm.user_id = auth.uid()
+        and gm.role = 'admin'
+        and e.id = event_comments.event_id
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    OR exists (
+      select 1
+      from group_members gm
+      join events e on e.group_id = gm.group_id
+      where gm.user_id = auth.uid()
+        and gm.role = 'admin'
+        and e.id = event_comments.event_id
+    )
+  );
 
 -- 5. Group Polls
 create table if not exists group_polls (

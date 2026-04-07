@@ -70,6 +70,8 @@ export default function GroupPage() {
   const [loading, setLoading] = useState(true)
   const [inviteUsername, setInviteUsername] = useState('')
   const [inviteMessage, setInviteMessage] = useState<{ text: string; ok: boolean } | null>(null)
+  const [memberMessage, setMemberMessage] = useState<{ text: string; ok: boolean } | null>(null)
+  const [memberActionId, setMemberActionId] = useState<string | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [pollCount, setPollCount] = useState(0)
   const [pastEventsCount, setPastEventsCount] = useState(0)
@@ -80,6 +82,45 @@ export default function GroupPage() {
   const router = useRouter()
   const params = useParams()
   const groupId = params.id as string
+
+  const isAdmin = members.some(m => m.user_id === user?.id && m.role === 'admin')
+
+  const promoteMember = async (memberId: string) => {
+    if (!user) return
+    setMemberActionId(memberId)
+    setMemberMessage(null)
+    const { error } = await supabase
+      .from('group_members')
+      .update({ role: 'admin' })
+      .eq('group_id', groupId)
+      .eq('user_id', memberId)
+    if (error) {
+      setMemberMessage({ text: 'Failed to promote: ' + error.message, ok: false })
+    } else {
+      setMemberMessage({ text: 'Member promoted to admin.', ok: true })
+      await loadMembers()
+    }
+    setMemberActionId(null)
+  }
+
+  const removeMember = async (memberId: string) => {
+    if (!user) return
+    if (!confirm('Remove this member from the group?')) return
+    setMemberActionId(memberId)
+    setMemberMessage(null)
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', memberId)
+    if (error) {
+      setMemberMessage({ text: 'Failed to remove member: ' + error.message, ok: false })
+    } else {
+      setMemberMessage({ text: 'Member removed from group.', ok: true })
+      await loadMembers()
+    }
+    setMemberActionId(null)
+  }
 
   const loadMembers = useCallback(async () => {
     const { data } = await supabase
@@ -342,15 +383,19 @@ export default function GroupPage() {
         <div className="bg-surface rounded-2xl border border-edge-dim overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-edge-dim">
             <p className="text-sm font-semibold text-fg">Members <span className="text-fg-faint font-normal ml-1">({members.length})</span></p>
-            <button
-              onClick={() => { setShowInvite(!showInvite); setInviteMessage(null) }}
-              className="text-xs text-accent-lt hover:text-fg font-semibold transition-colors"
-            >
-              + Add
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => { setShowInvite(!showInvite); setInviteMessage(null) }}
+                className="text-xs text-accent-lt hover:text-fg font-semibold transition-colors"
+              >
+                + Add
+              </button>
+            ) : (
+              <span className="text-xs text-fg-muted">Only admins can manage members</span>
+            )}
           </div>
 
-          {showInvite && (
+          {showInvite && isAdmin && (
             <div className="px-5 py-4 border-b border-edge-dim space-y-3">
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -376,6 +421,11 @@ export default function GroupPage() {
                   {inviteMessage.text}
                 </p>
               )}
+              {memberMessage && (
+                <p className={`text-sm ${memberMessage.ok ? 'text-accent-lt' : 'text-rose-400'}`}>
+                  {memberMessage.text}
+                </p>
+              )}
             </div>
           )}
 
@@ -393,7 +443,29 @@ export default function GroupPage() {
                     <p className="text-xs text-fg-faint">@{member.profiles.username}</p>
                   )}
                 </div>
-                <span className="text-xs text-fg-faint capitalize bg-elevated px-2 py-1 rounded-lg">{member.role}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-fg-faint capitalize bg-elevated px-2 py-1 rounded-lg">{member.role}</span>
+                  {isAdmin && !isMe && (
+                    <div className="flex gap-2">
+                      {member.role !== 'admin' && (
+                        <button
+                          onClick={() => promoteMember(member.user_id)}
+                          disabled={memberActionId === member.user_id}
+                          className="px-2 py-1 text-[11px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {memberActionId === member.user_id ? 'Working…' : 'Promote'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeMember(member.user_id)}
+                        disabled={memberActionId === member.user_id}
+                        className="px-2 py-1 text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {memberActionId === member.user_id ? 'Working…' : 'Kick'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
