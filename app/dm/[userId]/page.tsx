@@ -270,7 +270,7 @@ export default function DMPage() {
             onKeyDown={handleKeyDown}
             placeholder={`Message ${friendName}…`}
             rows={1}
-            className="flex-1 px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-sm"
+            className="flex-1 px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-base"
           />
           <button
             onClick={sendMessage}
