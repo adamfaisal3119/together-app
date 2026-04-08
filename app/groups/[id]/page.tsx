@@ -182,14 +182,17 @@ export default function GroupPage() {
         })
       }
 
-      // Calculate unread messages
+      // Calculate unread messages from other members only
       const lastViewed = localStorage.getItem(`group_chat_last_viewed_${groupId}`)
-      if (lastViewed || chatPreview) {  // If there's a lastViewed OR there are messages (for new groups)
-        const { count } = await supabase
+      if ((lastViewed || chatPreview) && user) {
+        const query = supabase
           .from('messages')
           .select('*', { count: 'exact', head: true })
           .eq('group_id', groupId)
-          .gt('created_at', lastViewed || '1970-01-01T00:00:00.000Z')  // If no lastViewed, count all messages
+          .gt('created_at', lastViewed || '1970-01-01T00:00:00.000Z')
+          .neq('user_id', user.id)
+
+        const { count } = await query
         setUnreadCount(count || 0)
       }
 
