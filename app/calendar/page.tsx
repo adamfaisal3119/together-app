@@ -398,18 +398,16 @@ export default function PersonalCalendarPage() {
               return (
                 <div
                   key={i}
-                  className={`rounded-2xl border overflow-hidden ${
+                  onClick={() => openCreateForDay(day)}
+                  className={`rounded-2xl border overflow-hidden cursor-pointer hover:border-accent/50 transition-colors ${
                     isToday ? 'border-accent' : 'border-edge-dim'
                   }`}
                 >
                   <div className={`flex items-start gap-4 px-4 py-3 ${
                     isToday ? 'bg-accent-bg' : 'bg-surface'
                   }`}>
-                    {/* Day label — click to create event on this day */}
-                    <button
-                      onClick={() => openCreateForDay(day)}
-                      className="w-10 shrink-0 text-center pt-0.5 rounded-xl hover:bg-accent/10 active:scale-95 transition-all"
-                    >
+                    {/* Day label */}
+                    <div className="w-10 shrink-0 text-center pt-0.5">
                       <p className={`text-[11px] font-semibold uppercase tracking-wide ${
                         isToday ? 'text-accent-lt' : 'text-fg-faint'
                       }`}>
@@ -420,16 +418,16 @@ export default function PersonalCalendarPage() {
                       }`}>
                         {day.getDate()}
                       </p>
-                    </button>
+                    </div>
 
                     {/* Events */}
                     <div className="flex-1 min-w-0 space-y-1.5 py-0.5">
                       {dayEvents.length === 0 ? (
-                        <p className="text-sm text-fg-faint py-1.5">No events</p>
+                        <p className="text-sm text-fg-faint py-1.5">Tap to add event</p>
                       ) : dayEvents.map(event => (
                         <div
                           key={event.id}
-                          onClick={() => setSelectedEvent(event)}
+                          onClick={e => { e.stopPropagation(); setSelectedEvent(event) }}
                           className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                             event.show_as === 'busy'
                               ? 'bg-rose-500/15 border border-rose-500/25 hover:bg-rose-500/25'
