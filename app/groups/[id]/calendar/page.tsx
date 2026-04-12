@@ -844,7 +844,7 @@ export default function CalendarPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-fg-muted mb-1">Start time *</p>
                   <input

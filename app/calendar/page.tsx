@@ -148,6 +148,27 @@ export default function PersonalCalendarPage() {
     if (user) await fetchEvents(user.id)
   }
 
+  const toDateTimeLocal = (date: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  }
+
+  const openCreateForDay = (date: Date) => {
+    const start = new Date(date)
+    start.setHours(9, 0, 0, 0)
+    const end = new Date(date)
+    end.setHours(10, 0, 0, 0)
+    setStartTime(toDateTimeLocal(start))
+    setEndTime(toDateTimeLocal(end))
+    setTitle('')
+    setDescription('')
+    setRecurring('none')
+    setShowAs('busy')
+    setFormError('')
+    setShowCreate(true)
+    setTimeout(() => document.getElementById('create-event-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
@@ -213,7 +234,7 @@ export default function PersonalCalendarPage() {
 
         {/* Create form */}
         {showCreate && (
-          <div className="bg-surface rounded-2xl p-6 border border-accent">
+          <div id="create-event-form" className="bg-surface rounded-2xl p-6 border border-accent">
             <h3 className="text-lg font-semibold text-fg mb-4">Add to your calendar</h3>
             <div className="space-y-4">
               <input
@@ -230,7 +251,7 @@ export default function PersonalCalendarPage() {
                 rows={2}
                 className="w-full px-4 py-3 rounded-xl bg-elevated text-fg border border-edge focus:outline-none focus:border-accent resize-none placeholder:text-fg-faint text-sm"
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-fg-muted mb-1">Start time *</p>
                   <input
@@ -384,8 +405,11 @@ export default function PersonalCalendarPage() {
                   <div className={`flex items-start gap-4 px-4 py-3 ${
                     isToday ? 'bg-accent-bg' : 'bg-surface'
                   }`}>
-                    {/* Day label */}
-                    <div className="w-10 shrink-0 text-center pt-0.5">
+                    {/* Day label — click to create event on this day */}
+                    <button
+                      onClick={() => openCreateForDay(day)}
+                      className="w-10 shrink-0 text-center pt-0.5 rounded-xl hover:bg-accent/10 active:scale-95 transition-all"
+                    >
                       <p className={`text-[11px] font-semibold uppercase tracking-wide ${
                         isToday ? 'text-accent-lt' : 'text-fg-faint'
                       }`}>
@@ -396,7 +420,7 @@ export default function PersonalCalendarPage() {
                       }`}>
                         {day.getDate()}
                       </p>
-                    </div>
+                    </button>
 
                     {/* Events */}
                     <div className="flex-1 min-w-0 space-y-1.5 py-0.5">
@@ -458,7 +482,8 @@ export default function PersonalCalendarPage() {
                 return (
                   <div
                     key={day}
-                    className={`min-h-20 p-1 rounded-xl border transition-colors ${
+                    onClick={() => openCreateForDay(date)}
+                    className={`min-h-20 p-1 rounded-xl border transition-colors cursor-pointer hover:border-accent/50 hover:bg-accent/5 active:scale-[0.98] ${
                       isToday ? 'border-accent bg-accent-bg' : 'border-edge-dim bg-surface'
                     }`}
                   >
@@ -470,7 +495,7 @@ export default function PersonalCalendarPage() {
                     {dayEvents.slice(0, 2).map(event => (
                       <div
                         key={event.id}
-                        onClick={() => setSelectedEvent(event)}
+                        onClick={e => { e.stopPropagation(); setSelectedEvent(event) }}
                         className={`text-xs rounded px-1 py-0.5 mb-0.5 truncate cursor-pointer ${
                           event.show_as === 'busy'
                             ? 'bg-rose-500/20 text-rose-400'

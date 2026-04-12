@@ -72,6 +72,7 @@ export default function GroupPage() {
   const [inviteMessage, setInviteMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [memberMessage, setMemberMessage] = useState<{ text: string; ok: boolean } | null>(null)
   const [memberActionId, setMemberActionId] = useState<string | null>(null)
+  const [confirmKickId, setConfirmKickId] = useState<string | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [pollCount, setPollCount] = useState(0)
   const [pastEventsCount, setPastEventsCount] = useState(0)
@@ -105,8 +106,8 @@ export default function GroupPage() {
 
   const removeMember = async (memberId: string) => {
     if (!user) return
-    if (!confirm('Remove this member from the group?')) return
     setMemberActionId(memberId)
+    setConfirmKickId(null)
     setMemberMessage(null)
     const { error } = await supabase
       .from('group_members')
@@ -213,12 +214,17 @@ export default function GroupPage() {
       return
     }
 
+    if (members.some(m => m.user_id === profile.id)) {
+      setInviteMessage({ text: 'That person is already in the group.', ok: false })
+      return
+    }
+
     const { error } = await supabase
       .from('group_members')
       .insert({ group_id: groupId, user_id: profile.id, role: 'member' })
 
     if (error) {
-      setInviteMessage({ text: 'Failed to add — they may already be in the group.', ok: false })
+      setInviteMessage({ text: 'Failed to add: ' + error.message, ok: false })
     } else {
       setInviteMessage({ text: 'Member added!', ok: true })
       setInviteUsername('')
@@ -351,15 +357,15 @@ export default function GroupPage() {
         {/* Quick action cards — 2×2 */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Chat', emoji: '💬', path: `/groups/${groupId}/chat`, preview: chatPreview ? `${chatPreview.sender_name}: ${chatPreview.content}` : 'No messages yet', unreadCount: unreadCount > 0 ? unreadCount : undefined },
-            { label: 'Calendar', emoji: '📅', path: `/groups/${groupId}/calendar`, preview: upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'No events' },
-            { label: 'Memories', emoji: '📸', path: `/groups/${groupId}/memories`, preview: 'Photos & videos' },
-            { label: 'Polls', emoji: '🗳️', path: `/groups/${groupId}/polls`, preview: pollCount > 0 ? `${pollCount} poll${pollCount !== 1 ? 's' : ''}` : 'Ask your group' },
+            { label: 'Chat', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>, path: `/groups/${groupId}/chat`, preview: chatPreview ? `${chatPreview.sender_name}: ${chatPreview.content}` : 'No messages yet', unreadCount: unreadCount > 0 ? unreadCount : undefined },
+            { label: 'Calendar', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>, path: `/groups/${groupId}/calendar`, preview: upcomingEvents.length > 0 ? `${upcomingEvents.length} upcoming` : 'No events' },
+            { label: 'Memories', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>, path: `/groups/${groupId}/memories`, preview: 'Photos & videos' },
+            { label: 'Polls', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, path: `/groups/${groupId}/polls`, preview: pollCount > 0 ? `${pollCount} poll${pollCount !== 1 ? 's' : ''}` : 'Ask your group' },
           ].map(card => (
             <Link key={card.label} href={card.path}>
               <div className="card-hover bg-surface rounded-2xl p-4 border border-edge-dim hover:border-accent/60 h-full flex flex-col relative">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{card.emoji}</span>
+                  <span className="text-fg-muted">{card.icon}</span>
                   {card.unreadCount && card.unreadCount > 0 && (
                     <div className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                       {card.unreadCount > 99 ? '99+' : card.unreadCount}
@@ -441,11 +447,14 @@ export default function GroupPage() {
                   {inviteMessage.text}
                 </p>
               )}
-              {memberMessage && (
-                <p className={`text-sm ${memberMessage.ok ? 'text-accent-lt' : 'text-rose-400'}`}>
-                  {memberMessage.text}
-                </p>
-              )}
+            </div>
+          )}
+
+          {memberMessage && (
+            <div className="px-5 py-2.5 border-b border-edge-dim">
+              <p className={`text-sm ${memberMessage.ok ? 'text-accent-lt' : 'text-rose-400'}`}>
+                {memberMessage.text}
+              </p>
             </div>
           )}
 
@@ -478,13 +487,31 @@ export default function GroupPage() {
                           {memberActionId === member.user_id ? 'Working…' : 'Promote'}
                         </button>
                       )}
-                      <button
-                        onClick={() => removeMember(member.user_id)}
-                        disabled={memberActionId === member.user_id}
-                        className="px-2 py-1 text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {memberActionId === member.user_id ? 'Working…' : 'Kick'}
-                      </button>
+                      {confirmKickId === member.user_id ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => removeMember(member.user_id)}
+                            disabled={memberActionId === member.user_id}
+                            className="px-2 py-1 text-[11px] bg-rose-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {memberActionId === member.user_id ? '…' : 'Sure?'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmKickId(null)}
+                            className="px-2 py-1 text-[11px] bg-elevated text-fg-muted rounded-lg transition-colors"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmKickId(member.user_id)}
+                          disabled={memberActionId === member.user_id}
+                          className="px-2 py-1 text-[11px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          Kick
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

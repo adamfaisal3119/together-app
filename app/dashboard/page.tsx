@@ -8,42 +8,51 @@ import NotificationBell from '@/components/NotificationBell'
 import { UpcomingEventsFeed, RecentMemoriesFeed } from '@/components/DashboardFeeds'
 import { getCache, setCache } from '@/lib/cache'
 
+const IconUsers = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+    <path d="M16 3.13a4 4 0 010 7.75" />
+  </svg>
+)
+
+const IconHeart = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+  </svg>
+)
+
+const IconCalendar = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+)
+
+const IconMail = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M2 7l10 7 10-7" />
+  </svg>
+)
+
 const STAT_CARDS = [
-  {
-    href: '/groups',
-    emoji: '👥',
-    label: 'Groups',
-    iconBg: 'bg-blue-500/15',
-  },
-  {
-    href: '/friends',
-    emoji: '🤝',
-    label: 'Friends',
-    iconBg: 'bg-rose-500/15',
-  },
+  { href: '/groups', Icon: IconUsers, label: 'Groups', iconBg: 'bg-blue-500/15', iconColor: 'text-blue-400' },
+  { href: '/friends', Icon: IconHeart, label: 'Friends', iconBg: 'bg-rose-500/15', iconColor: 'text-rose-400' },
 ]
 
 const PRIMARY_FEATURES = [
-  {
-    href: '/groups',
-    emoji: '👥',
-    title: 'Your Groups',
-    desc: "Manage who's in your circle",
-    iconBg: 'bg-blue-500/12',
-  },
-  {
-    href: '/calendar',
-    emoji: '📅',
-    title: 'My Calendar',
-    desc: 'Your personal schedule',
-    iconBg: 'bg-emerald-500/12',
-  },
+  { href: '/groups', Icon: IconUsers, title: 'Your Groups', desc: "Manage who's in your circle", iconBg: 'bg-blue-500/12', iconColor: 'text-blue-400' },
+  { href: '/calendar', Icon: IconCalendar, title: 'My Calendar', desc: 'Your personal schedule', iconBg: 'bg-emerald-500/12', iconColor: 'text-emerald-400' },
 ]
 
 const QUICK_LINKS = [
-  { href: '/invites', emoji: '📬', label: 'Invites', desc: 'Accept or decline group event invites' },
-  { href: '/friends', emoji: '🤝', label: 'Friends', desc: 'Connect and message your people' },
-  { href: '/calendar', emoji: '📅', label: 'My Calendar', desc: 'Your personal schedule, private to you' },
+  { href: '/invites', Icon: IconMail, label: 'Invites', desc: 'Accept or decline group event invites', iconColor: 'text-accent' },
+  { href: '/friends', Icon: IconHeart, label: 'Friends', desc: 'Connect and message your people', iconColor: 'text-rose-400' },
+  { href: '/calendar', Icon: IconCalendar, label: 'My Calendar', desc: 'Your personal schedule, private to you', iconColor: 'text-emerald-400' },
 ]
 
 export default function Dashboard() {
@@ -158,8 +167,8 @@ export default function Dashboard() {
           {STAT_CARDS.map((card, i) => (
             <Link key={card.label} href={card.href} className="group">
               <div className="card-hover bg-surface border border-edge-dim rounded-2xl p-5 hover:border-accent/60 h-full">
-                <div className={`w-11 h-11 rounded-xl ${card.iconBg} flex items-center justify-center text-xl mb-4`}>
-                  {card.emoji}
+                <div className={`w-11 h-11 rounded-xl ${card.iconBg} ${card.iconColor} flex items-center justify-center mb-4`}>
+                  <card.Icon />
                 </div>
                 <p className="text-4xl font-bold text-fg tabular-nums">{statCounts[i]}</p>
                 <p className="text-fg-muted text-sm font-medium mt-1">{card.label}</p>
@@ -173,8 +182,8 @@ export default function Dashboard() {
           {PRIMARY_FEATURES.map(f => (
             <Link key={f.title} href={f.href} className="group">
               <div className="card-hover bg-surface border border-edge-dim rounded-2xl p-5 hover:border-accent/60 h-full flex flex-col">
-                <div className={`w-12 h-12 rounded-2xl ${f.iconBg} flex items-center justify-center text-2xl mb-4 shrink-0`}>
-                  {f.emoji}
+                <div className={`w-12 h-12 rounded-2xl ${f.iconBg} ${f.iconColor} flex items-center justify-center mb-4 shrink-0`}>
+                  <f.Icon />
                 </div>
                 <p className="font-semibold text-fg text-[15px] leading-snug">{f.title}</p>
                 <p className="text-fg-muted text-xs mt-1.5 leading-relaxed">{f.desc}</p>
@@ -198,8 +207,8 @@ export default function Dashboard() {
                 <div className={`flex items-center gap-4 px-5 py-4 hover:bg-elevated active:bg-elevated transition-colors ${
                   i < QUICK_LINKS.length - 1 ? 'border-b border-edge-dim' : ''
                 }`}>
-                  <div className="w-10 h-10 rounded-xl bg-elevated border border-edge-dim flex items-center justify-center text-xl shrink-0">
-                    {item.emoji}
+                  <div className={`w-10 h-10 rounded-xl bg-elevated border border-edge-dim ${item.iconColor} flex items-center justify-center shrink-0`}>
+                    <item.Icon />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-fg">{item.label}</p>

@@ -71,6 +71,7 @@ export default function BottomNav() {
   const pathname = usePathname()
   const supabase = useMemo(() => createClient(), [])
   const [pendingCount, setPendingCount] = useState(0)
+  const [unreadDmCount, setUnreadDmCount] = useState(0)
 
   useEffect(() => {
     const fetchPending = async () => {
@@ -88,6 +89,35 @@ export default function BottomNav() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, pathname === '/invites'])
 
+  useEffect(() => {
+    let userId: string | null = null
+
+    const fetchUnreadDms = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      userId = user.id
+      const { count } = await supabase
+        .from('direct_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .eq('read', false)
+      setUnreadDmCount(count ?? 0)
+    }
+
+    fetchUnreadDms()
+
+    const channel = supabase
+      .channel('bottom-nav-dm-unread')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, () => {
+        fetchUnreadDms()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  // Re-fetch when leaving the friends page (messages may have been read)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, pathname === '/friends'])
+
   const isChat = CHAT_ROUTES.some(r => pathname.includes(r))
   const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
   if (isChat || isAuth) return null
@@ -102,7 +132,8 @@ export default function BottomNav() {
         <div className="flex items-center justify-around px-1 max-w-lg mx-auto">
           {NAV_ITEMS.map(({ href, label, Icon }) => {
             const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-            const showBadge = href === '/invites' && pendingCount > 0
+            const showBadge = (href === '/invites' && pendingCount > 0) || (href === '/friends' && unreadDmCount > 0)
+            const badgeCount = href === '/invites' ? pendingCount : unreadDmCount
             return (
               <Link
                 key={href}
@@ -116,7 +147,7 @@ export default function BottomNav() {
                   <Icon active={active} />
                   {showBadge && (
                     <span className="absolute -top-1 -right-1.5 min-w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                      {pendingCount > 9 ? '9+' : pendingCount}
+                      {badgeCount > 9 ? '9+' : badgeCount}
                     </span>
                   )}
                   {active && !showBadge && (

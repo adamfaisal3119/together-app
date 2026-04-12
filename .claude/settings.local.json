@@ -4,7 +4,8 @@
       "Bash(sed -i 's/className=\"min-h-screen bg-base text-fg pb-24\"/className=\"min-h-screen bg-base text-fg pb-24 page-enter\"/g' app/calendar/page.tsx app/friends/page.tsx app/groups/page.tsx app/invites/page.tsx app/settings/page.tsx)",
       "Bash(sed -i 's/className=\"min-h-screen bg-base text-fg pb-28\"/className=\"min-h-screen bg-base text-fg pb-28 page-enter\"/g' app/dashboard/page.tsx)",
       "Bash(sed -i 's/className=\"min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0\"/className=\"min-h-screen bg-base text-fg flex flex-col pb-16 md:pb-0 page-enter\"/g' app/dm/[userId]/page.tsx)",
-      "Bash(sed -i 's/className=\"min-h-screen bg-base text-fg\"/className=\"min-h-screen bg-base text-fg page-enter\"/g' app/groups/[id]/calendar/page.tsx app/groups/[id]/chat/page.tsx app/groups/[id]/page.tsx)"
+      "Bash(sed -i 's/className=\"min-h-screen bg-base text-fg\"/className=\"min-h-screen bg-base text-fg page-enter\"/g' app/groups/[id]/calendar/page.tsx app/groups/[id]/chat/page.tsx app/groups/[id]/page.tsx)",
+      "Bash(grep -r \"read.*true\\\\|read.*false\" /c/Users/adamf/Desktop/together-app --include=\"*.tsx\" --include=\"*.ts\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\")"
     ]
   }
 }
