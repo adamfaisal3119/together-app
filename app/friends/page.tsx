@@ -120,18 +120,21 @@ export default function FriendsPage() {
     load()
   }, [supabase, router, fetchFriendships])
 
-  // Re-fetch unread counts whenever the user returns to this tab
-  // (e.g. after reading messages in a DM and coming back)
+  // Re-fetch unread counts in real-time whenever any direct_message changes
+  // (covers: new message arriving, messages being marked read after opening a DM)
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && user) {
-        const friendIds = friends.map(f => f.friend.id)
-        if (friendIds.length > 0) fetchUnreadCounts(user.id, friendIds)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [user, friends, fetchUnreadCounts])
+    if (!user || friends.length === 0) return
+    const friendIds = friends.map(f => f.friend.id)
+
+    const channel = supabase
+      .channel('friends-page-dm-counts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, () => {
+        fetchUnreadCounts(user.id, friendIds)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user, friends, supabase, fetchUnreadCounts])
 
   const searchUser = async () => {
     if (!search.trim()) return
