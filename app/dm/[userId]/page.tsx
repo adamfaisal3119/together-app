@@ -299,7 +299,7 @@ export default function DMPage() {
   const initials = friendName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'
 
   if (loading) return (
-    <main className="bg-base flex flex-col fixed inset-0">
+    <main className="bg-base flex flex-col h-dvh overflow-hidden">
       <nav className="border-b border-edge-dim px-5 py-3 flex items-center gap-3">
         <div className="h-4 w-16 bg-elevated animate-pulse rounded" />
         <div className="w-8 h-8 rounded-full bg-elevated animate-pulse" />
@@ -309,7 +309,7 @@ export default function DMPage() {
   )
 
   return (
-    <main className="bg-base text-fg flex flex-col fixed inset-0">
+    <main className="bg-base text-fg flex flex-col h-dvh overflow-hidden">
       <nav className="border-b border-edge-dim px-5 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => router.push('/friends')}

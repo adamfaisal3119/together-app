@@ -72,6 +72,7 @@ export default function BottomNav() {
   const supabase = useMemo(() => createClient(), [])
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadDmCount, setUnreadDmCount] = useState(0)
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
 
   useEffect(() => {
     const fetchPending = async () => {
@@ -118,6 +119,40 @@ export default function BottomNav() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, pathname === '/friends'])
 
+  useEffect(() => {
+    const fetchUnreadNotifs = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setUnreadNotifCount(count ?? 0)
+    }
+
+    fetchUnreadNotifs()
+
+    const setupChannel = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const channel = supabase
+        .channel('bottom-nav-notifs')
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        }, () => fetchUnreadNotifs())
+        .subscribe()
+      return channel
+    }
+
+    let channelRef: Awaited<ReturnType<typeof setupChannel>>
+    setupChannel().then(c => { channelRef = c })
+    return () => { if (channelRef) supabase.removeChannel(channelRef) }
+  // Re-fetch when arriving at dashboard (notifications may have been read)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, pathname === '/dashboard'])
+
   const isChat = CHAT_ROUTES.some(r => pathname.includes(r))
   const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
   if (isChat || isAuth) return null
@@ -132,8 +167,8 @@ export default function BottomNav() {
         <div className="flex items-center justify-around px-1 max-w-lg mx-auto">
           {NAV_ITEMS.map(({ href, label, Icon }) => {
             const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-            const showBadge = (href === '/invites' && pendingCount > 0) || (href === '/friends' && unreadDmCount > 0)
-            const badgeCount = href === '/invites' ? pendingCount : unreadDmCount
+            const showBadge = (href === '/dashboard' && unreadNotifCount > 0) || (href === '/invites' && pendingCount > 0) || (href === '/friends' && unreadDmCount > 0)
+            const badgeCount = href === '/dashboard' ? unreadNotifCount : href === '/invites' ? pendingCount : unreadDmCount
             return (
               <Link
                 key={href}

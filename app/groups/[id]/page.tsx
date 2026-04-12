@@ -90,13 +90,16 @@ export default function GroupPage() {
     if (!user) return
     setMemberActionId(memberId)
     setMemberMessage(null)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('group_members')
       .update({ role: 'admin' })
       .eq('group_id', groupId)
       .eq('user_id', memberId)
+      .select()
     if (error) {
       setMemberMessage({ text: 'Failed to promote: ' + error.message, ok: false })
+    } else if (!data || data.length === 0) {
+      setMemberMessage({ text: 'Permission denied — only the group creator can promote members.', ok: false })
     } else {
       setMemberMessage({ text: 'Member promoted to admin.', ok: true })
       await loadMembers()
@@ -109,13 +112,15 @@ export default function GroupPage() {
     setMemberActionId(memberId)
     setConfirmKickId(null)
     setMemberMessage(null)
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('group_members')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('group_id', groupId)
       .eq('user_id', memberId)
     if (error) {
       setMemberMessage({ text: 'Failed to remove member: ' + error.message, ok: false })
+    } else if (count === 0) {
+      setMemberMessage({ text: 'Permission denied — only the group creator can remove members.', ok: false })
     } else {
       setMemberMessage({ text: 'Member removed from group.', ok: true })
       await loadMembers()
