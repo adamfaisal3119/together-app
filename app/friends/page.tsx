@@ -120,6 +120,19 @@ export default function FriendsPage() {
     load()
   }, [supabase, router, fetchFriendships])
 
+  // Re-fetch unread counts whenever the user returns to this tab
+  // (e.g. after reading messages in a DM and coming back)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && user) {
+        const friendIds = friends.map(f => f.friend.id)
+        if (friendIds.length > 0) fetchUnreadCounts(user.id, friendIds)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [user, friends, fetchUnreadCounts])
+
   const searchUser = async () => {
     if (!search.trim()) return
     setSearching(true)
