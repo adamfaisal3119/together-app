@@ -246,7 +246,7 @@ export default function FriendsPage() {
         {tab === 'friends' && friends.length === 0 && (
           <div className="text-center py-16 bg-surface rounded-2xl border border-edge-dim">
             <p className="text-4xl mb-3">👥</p>
-            <p className="text-fg-muted font-medium">No friends yet</p>
+            <p className="text-fg-muted font-medium">No friends yet!</p>
             <p className="text-fg-faint text-sm mt-1">Search for someone by username above</p>
           </div>
         )}
