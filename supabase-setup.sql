@@ -275,7 +275,31 @@ do $$ begin
   end if;
 end $$;
 
--- 15. Triggers: notifications
+-- 15. INFRA-04: Expo push token support
+-- Adds expo_push_token + platform columns so native (iOS/Android) and web push
+-- tokens can coexist in the same table.
+-- Makes web-push-only fields nullable since native rows won't have them.
+alter table push_subscriptions
+  add column if not exists expo_push_token text,
+  add column if not exists platform text default 'web'
+    check (platform in ('web', 'ios', 'android'));
+
+alter table push_subscriptions
+  alter column endpoint drop not null,
+  alter column p256dh   drop not null,
+  alter column auth_key drop not null;
+
+-- Unique constraint on expo_push_token (one row per device)
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'push_subscriptions_expo_push_token_key'
+  ) then
+    alter table push_subscriptions
+      add constraint push_subscriptions_expo_push_token_key unique (expo_push_token);
+  end if;
+end $$;
+
+-- 16. Triggers: notifications
 
 create or replace function notify_friend_request()
 returns trigger language plpgsql security definer as $$

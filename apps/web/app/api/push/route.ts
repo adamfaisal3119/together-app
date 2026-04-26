@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth_key')
       .eq('user_id', userId)
+      .eq('platform', 'web')
 
     if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 })
 
