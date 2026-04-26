@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
-
 // Called by Supabase webhook on notifications INSERT
 export async function POST(req: NextRequest) {
   try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT!,
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+      process.env.VAPID_PRIVATE_KEY!
+    )
     const body = await req.json()
     // Supabase webhook sends { type, table, record, ... }
     const record = body.record ?? body
