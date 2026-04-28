@@ -16,7 +16,7 @@ interface PersonalEvent {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const DAYS = ['SuN', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function PersonalCalendarPage() {
   const [events, setEvents] = useState<PersonalEvent[]>([])
