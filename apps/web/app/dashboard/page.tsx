@@ -46,7 +46,7 @@ const STAT_CARDS = [
 
 const PRIMARY_FEATURES = [
   { href: '/groups', Icon: IconUsers, title: 'Your Groups', desc: "Manage who's in your circle", iconBg: 'bg-blue-500/12', iconColor: 'text-blue-400' },
-  { href: '/calendar', Icon: IconCalendar, title: 'My Calendar', desc: 'Your personal schedule', iconBg: 'bg-emerald-500/12', iconColor: 'text-emerald-400' },
+  { href: '/calendar', Icon: IconCalendar, title: 'OHHH THE BLACK GUY', desc: 'Your personal schedule', iconBg: 'bg-emerald-500/12', iconColor: 'text-emerald-400' },
 ]
 
 const QUICK_LINKS = [
