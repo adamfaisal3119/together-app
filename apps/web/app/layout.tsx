@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import Script from 'next/script'
 import { ThemeProvider } from '@/lib/theme-context'
 import { THEME_PRESETS, BG_PRESETS } from '@/lib/themes'
 import PageTransition from '@/components/PageTransition'
@@ -50,9 +51,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#7c3aed" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} suppressHydrationWarning />
       </head>
       <body className="min-h-full flex flex-col bg-base text-fg">
+        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeScript }} />
         <ServiceWorkerRegister />
         <ThemeProvider>
           <PageTransition>
