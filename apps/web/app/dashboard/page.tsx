@@ -50,7 +50,7 @@ const PRIMARY_FEATURES = [
 ]
 
 const QUICK_LINKS = [
-  { href: '/invites', Icon: IconMail, label: 'Invites', desc: 'Accept or decline group event invites', iconColor: 'text-accent' },
+  { href: '/invites', Icon: IconMail, label: 'Invites', desc: 'Accept or declines group event invites', iconColor: 'text-accent' },
   { href: '/friends', Icon: IconHeart, label: 'Friends', desc: 'Connect and message your people', iconColor: 'text-rose-400' },
   { href: '/calendar', Icon: IconCalendar, label: 'My Calendar', desc: 'Your personal schedule, private to you', iconColor: 'text-emerald-400' },
 ]
