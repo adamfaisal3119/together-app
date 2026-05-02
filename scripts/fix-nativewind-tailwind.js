@@ -41,6 +41,19 @@ ensureJunction(
   'root -> expo-router'
 )
 
+// Fix 4: react-native-css-interop (root) requires react-native and react which
+// are local to the native workspace. Expose them at root so hoisted packages find them.
+ensureJunction(
+  path.join(root, 'apps/native/node_modules/react-native'),
+  path.join(root, 'node_modules/react-native'),
+  'root -> react-native'
+)
+ensureJunction(
+  path.join(root, 'apps/native/node_modules/react'),
+  path.join(root, 'node_modules/react'),
+  'root -> react'
+)
+
 // Fix 3: metro-config loadConfig.js uses `await import(absolutePath)` with a raw
 // Windows path (C:\...) which Node.js 22+ ESM loader rejects. Patch it to use
 // pathToFileURL so the loader receives a valid file:// URL.
