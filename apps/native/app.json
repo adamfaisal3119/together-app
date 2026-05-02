@@ -3,6 +3,7 @@
     "name": "Together",
     "slug": "together",
     "version": "1.0.0",
+    "sdkVersion": "55.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "together",
@@ -25,8 +26,7 @@
       "package": "com.together.app"
     },
     "plugins": [
-      "expo-router",
-      "nativewind/babel"
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true
