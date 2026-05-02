@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev --filter=@together/web",
+    "dev:native": "turbo run dev --filter=@together/native",
     "dev:all": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",

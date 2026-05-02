@@ -7,10 +7,11 @@
     "icon": "./assets/icon.png",
     "scheme": "together",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#09090b"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,12 +20,16 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#09090b"
       },
       "package": "com.together.app"
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+      "nativewind/babel"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
