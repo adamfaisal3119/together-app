@@ -14,10 +14,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-// Force a single React instance so the renderer and hooks use the same copy
-config.resolver.extraNodeModules = {
-  react: path.resolve(workspaceRoot, 'node_modules/react'),
-  'react-native': path.resolve(workspaceRoot, 'node_modules/react-native'),
+const withNW = withNativeWind(config, { input: './global.css' })
+
+// Force a single React instance.
+// extraNodeModules is a fallback (ignored when local node_modules exists), so
+// we use resolveRequest which fires before any local resolution.
+const rootReact = path.resolve(workspaceRoot, 'node_modules/react')
+
+withNW.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'react' || moduleName.startsWith('react/')) {
+    const sub = moduleName === 'react' ? 'index.js' : moduleName.slice('react/'.length)
+    return { type: 'sourceFile', filePath: path.join(rootReact, sub) }
+  }
+  return context.resolveRequest(context, moduleName, platform)
 }
 
-module.exports = withNativeWind(config, { input: './global.css' })
+module.exports = withNW
