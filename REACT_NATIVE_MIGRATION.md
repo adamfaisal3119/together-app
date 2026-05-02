@@ -11,7 +11,7 @@
 2. [Architecture Overview](#2-architecture-overview)
 3. [Monorepo Structure](#3-monorepo-structure)
 4. [Tech Stack](#4-tech-stack)
-5. [Shared Backend (No Changes)](#5-shared-backend-no-changes)
+5. [Shared Backend (Minimal & Additive Changes)](#5-shared-backend-minimal--additive-changes)
 6. [Screen Mapping](#6-screen-mapping)
 7. [Epics](#7-epics)
 8. [Tickets](#8-tickets)
@@ -119,11 +119,10 @@
                               │ HTTPS / WSS (unchanged)
                               │
 ┌─────────────────────────────▼──────────────────────────────────────┐
-│                     Supabase (zero changes)                        │
+│              Supabase (existing data model + additive migrations)  │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────┐  ┌───────────┐  │
 │  │  Postgres   │  │   Realtime   │  │ Storage  │  │   Auth    │  │
-│  │  (all tables│  │ (subscriptions│  │  (media) │  │ (sessions │  │
-│  │   unchanged)│  │  unchanged)  │  │unchanged)│  │unchanged) │  │
+│  │  §5 migrs   │  │  unchanged   │  │unchanged │  │ unchanged │  │
 │  └─────────────┘  └──────────────┘  └──────────┘  └───────────┘  │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -134,7 +133,7 @@
 
 ```
 together/                          ← rename root or create new repo
-├── turbo.json                     ← Turborepo pipeline config
+├── turbo.json                     ← Turborepo `tasks` config (Turborepo 2.x)
 ├── package.json                   ← root workspace config
 ├── .env                           ← shared env vars (SUPABASE_URL, ANON_KEY)
 │
@@ -214,7 +213,7 @@ together/                          ← rename root or create new repo
 | State (server) | Supabase queries in hooks | Same | `packages/shared/hooks` |
 | Auth | Supabase Auth + cookies | Supabase Auth + SecureStore | `useAuth` hook |
 | Realtime | Supabase Realtime | Supabase Realtime | Same subscriptions |
-| Database | Supabase Postgres | Supabase Postgres | Same (no changes) |
+| Database | Supabase Postgres | Supabase Postgres | Same core schema; additive migrations in §5 |
 | File storage | Supabase Storage | Supabase Storage | Same |
 | Push notifications | Web Push API | Expo Push Notifications | Abstracted behind `usePush` hook |
 | Image/video pick | `<input type="file">` | Expo Image Picker | — |
@@ -228,9 +227,19 @@ together/                          ← rename root or create new repo
 
 ---
 
-## 5. Shared Backend (No Changes)
+## 5. Shared Backend (Minimal & Additive Changes)
 
-The entire Supabase backend is **untouched**. No schema changes, no new tables, no RLS policy changes. All existing tables carry forward as-is.
+The **application domain model stays the same**: all tables below are shared by web and native. There are **no breaking changes** to existing RLS or core tables for features already shipped on web.
+
+**Additive backend work** (small migrations, triggers, or Edge Functions) is limited to what native + unified push require:
+
+| Scope | Ticket | What |
+|---|---|---|
+| Schema | **INFRA-04** | Add `expo_push_token` and `platform` on `push_subscriptions` so Web Push and Expo tokens coexist |
+| Server-side automation | **INV-03** | When an admin creates a group **invite** event, fan out pending `event_rsvps` for all group members (database trigger and/or Edge Function — implement whichever matches production today) |
+| Notifications | **NOTIF-03** | Edge Function sends Web Push and Expo Push from the same `push_subscriptions` rows |
+
+Everything else in Supabase (Postgres tables, Realtime, Storage, Auth sessions) is **unchanged in behaviour** for existing web users.
 
 | Table | Used by web | Used by native |
 |---|---|---|
@@ -252,7 +261,7 @@ The entire Supabase backend is **untouched**. No schema changes, no new tables, 
 | `notifications` | ✅ | ✅ |
 | `push_subscriptions` | ✅ (web push) | ✅ (expo push token) |
 
-> **One schema addition required:** `push_subscriptions` needs an `expo_push_token` column alongside the existing Web Push columns so both platforms can coexist. See ticket **INFRA-04**.
+> **Schema addition for push:** `push_subscriptions` needs `expo_push_token` / `platform` as in **INFRA-04** so both platforms can coexist in one table.
 
 ---
 
@@ -318,7 +327,7 @@ The entire Supabase backend is **untouched**. No schema changes, no new tables, 
 Move the existing Next.js app into `apps/web/`, initialise Turborepo, create the `packages/shared` workspace skeleton and the `apps/native` Expo app.
 
 **Acceptance Criteria:**
-- [ ] `turbo.json` defines `build`, `dev`, `lint`, `type-check` pipelines
+- [ ] `turbo.json` defines `build`, `dev`, `lint`, `type-check` tasks (Turborepo 2.x `tasks` key)
 - [ ] `apps/web/` contains the full current Next.js codebase; all existing functionality still works
 - [ ] `apps/native/` is initialised with `npx create-expo-app` using the blank TypeScript template
 - [ ] `packages/shared/` exists with a `package.json` exporting from `src/index.ts`
@@ -328,13 +337,19 @@ Move the existing Next.js app into `apps/web/`, initialise Turborepo, create the
 - [ ] Existing web CI pipeline continues to pass
 
 **Notes:**
+Pin **`turbo` ^2** at the repo root (matches `tasks` below). Example:
+
 ```jsonc
-// turbo.json
+// turbo.json — Turborepo 2.x
 {
-  "pipeline": {
-    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**"] },
-    "dev":   { "cache": false, "persistent": true },
-    "lint":  {},
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "dev": { "cache": false, "persistent": true },
+    "lint": {},
     "type-check": { "dependsOn": ["^build"] }
   }
 }
@@ -349,19 +364,31 @@ Move the existing Next.js app into `apps/web/`, initialise Turborepo, create the
 Move the Supabase client factory and all TypeScript DB types into `packages/shared` so both web and native import from the same place.
 
 **Acceptance Criteria:**
-- [ ] `packages/shared/src/supabase/client.ts` exports `createClient()` — platform-agnostic (no Next.js SSR cookie adapter; web app wraps it with `@supabase/ssr` locally)
+- [ ] `packages/shared/src/supabase/client.ts` exports a **factory** (e.g. `createSupabaseClient`) — platform-agnostic; no Next.js cookie adapter in this file; `apps/web` wraps with `@supabase/ssr` locally (see table below)
 - [ ] `packages/shared/src/supabase/types.ts` contains generated types from `supabase gen types typescript`
 - [ ] Web app updated to import types from `@together/shared`
 - [ ] Native app imports client from `@together/shared`
 - [ ] No TypeScript errors in either app
 
+**Supabase client entry points (web vs native)**
+
+Shared code must not bake in Next.js cookies or React Native `AsyncStorage` in one file.
+
+| Entry | Responsibility |
+|---|---|
+| `packages/shared/src/supabase/client.ts` | Exports a **factory** `createSupabaseClient(options?)` using `@supabase/supabase-js` with no browser-only or RN-only imports |
+| `apps/web` | Wraps the factory with **`@supabase/ssr`**: `createServerClient` / `createBrowserClient` for cookies on Server Components and client |
+| Native app or shared RN export | **`client.native.ts`** (as in **AUTH-02**) or `packages/shared` `react-native` export condition; passes `auth.storage = AsyncStorage`, `persistSession`, `autoRefreshToken`, `detectSessionInUrl: false` |
+
+This keeps **INFRA-02** and **AUTH-02** aligned: one shared factory shape; platform-specific adapters live in each app.
+
 ---
 
-#### INFRA-03 · Set up `packages/shared` — hooks, stores, utils
-**Type:** Task | **Effort:** M | **Depends on:** INFRA-02, SHARE-01
+#### INFRA-03 · Set up `packages/shared` — hooks & stores
+**Type:** Task | **Effort:** M | **Depends on:** INFRA-02, SHARE-01, SHARE-05
 
 **Description:**
-Populate shared package with platform-agnostic hooks, Zustand stores, and utility functions.
+Populate shared package with platform-agnostic hooks and Zustand stores. **Depends on SHARE-01** so `formatTime` / `formatDate` exist before hooks import them; **depends on SHARE-05** so `cache.ts` lives in shared before hooks use the TTL cache.
 
 **Files to create:**
 
@@ -374,14 +401,19 @@ Populate shared package with platform-agnostic hooks, Zustand stores, and utilit
 | `hooks/useMessages.ts` | fetch + subscribe DM conversation |
 | `stores/authStore.ts` | Zustand: `user`, `profile`, `setUser`, `setProfile` |
 | `stores/unreadStore.ts` | Zustand: `dmUnread`, `rsvpPending`, setters |
-| `utils/formatTime.ts` | `formatTime(iso)`, `formatDate(iso)` |
-| `utils/cache.ts` | existing 30s TTL cache, unchanged |
+
+**Related utils (other tickets):**
+
+| File | Ticket |
+|---|---|
+| `utils/formatTime.ts`, `utils/formatDate.ts` | **SHARE-01** |
+| `utils/cache.ts` | **SHARE-05** |
 
 **Acceptance Criteria:**
 - [ ] All hooks compile without errors against the shared Supabase types
 - [ ] Zustand stores initialise correctly (no SSR issues — stores are client-only)
 - [ ] Web app can import and use `useAuth` from `@together/shared` with no behaviour change
-- [ ] `utils/formatTime` and `utils/formatDate` replace duplicated inline formatters across both apps
+- [ ] Hooks import formatters from `@together/shared` paths added in **SHARE-01** (no duplicated inline formatters)
 
 ---
 
@@ -965,8 +997,8 @@ Long pressing your own message opens a bottom sheet with Edit and Delete options
 - [ ] Long press triggers haptic feedback (medium impact)
 - [ ] Bottom sheet (using `@gorhom/bottom-sheet`) shows: Edit, Delete, Cancel
 - [ ] Edit: replaces message bubble with inline `TextInput` + Save/Cancel
-- [ ] Save: `UPDATE` in `direct_messages`; updates in list optimistically
-- [ ] Delete: `DELETE` in `direct_messages`; removes from list optimistically
+- [ ] Save: `UPDATE` in `messages` (group chat row); updates in list optimistically
+- [ ] Delete: `DELETE` in `messages`; removes from list optimistically
 - [ ] Long press on other users' messages: no action
 - [ ] Right-click (if run in web) still uses existing context menu
 
@@ -987,11 +1019,11 @@ Track unread messages for the group chat and show a badge on the Chat card in Gr
 
 ---
 
-#### CHAT-05 · Reactions (future — schema ready)
+#### CHAT-05 · Reactions (future — schema TBD)
 **Type:** Spike | **Effort:** S | **Depends on:** CHAT-01
 
 **Description:**
-The `event_reactions` table exists in schema. This ticket is a spike to design the native UX for reactions — long press shows emoji picker row — before implementation is scheduled.
+**Note:** The existing `event_reactions` table is for **calendar events** (emoji on events), not group chat messages. Group chat reactions are **not** implemented on web yet; this spike covers **native UX only** (e.g. long press → emoji row) and whether a future `message_reactions` table (or other schema) is required before build-out.
 
 **Deliverable:** Figma-style wireframe or written UX spec added to this ticket. No code.
 
@@ -1010,7 +1042,7 @@ Personal private calendar. Week and month views, event creation by tapping a day
 **UI Layout (Week View):**
 ```
 ┌──────────────────────────────────┐
-│  ← Apr 7 – Apr 13, 2025  →       │  ← week nav header
+│  ← Apr 7 – Apr 13, 2026  →       │  ← week nav header
 │                                  │
 │  MON 7    TUE 8    WED 9  ...    │  ← day column headers
 │  ───────────────────────────     │
@@ -1503,7 +1535,7 @@ Apple App Store **requires** apps with account creation to offer account deletio
 ---
 
 #### SHARE-01 · Extract `formatTime` and `formatDate` utilities
-**Type:** Task | **Effort:** XS | **Depends on:** INFRA-03
+**Type:** Task | **Effort:** XS | **Depends on:** INFRA-02
 
 **Description:**
 Both web and native need the same time/date formatting. Extract from the web app into `packages/shared`.
@@ -1560,7 +1592,7 @@ Data-fetching hooks for the two most commonly needed datasets.
 ---
 
 #### SHARE-05 · Migrate `cache.ts` to be platform-safe
-**Type:** Task | **Effort:** XS | **Depends on:** INFRA-03
+**Type:** Task | **Effort:** XS | **Depends on:** INFRA-02
 
 **Description:**
 Current `cache.ts` uses in-memory JS Map. Works on both platforms already; just needs to be moved to shared.
@@ -1714,17 +1746,19 @@ EP-01 (Infrastructure)
 │         │
 │         └──► EP-13 (Settings)
 │
-├──► EP-14 (Shared Migration)  ← can run in parallel with EP-02 onwards
+├──► EP-14 (Shared Migration)  ← overlaps EP-01; see ticket order below
 │
 └──────────────────────────────────────────────────────────────────────
                     All complete ──► EP-15 (QA & Release)
 ```
 
+**Ticket order within Sprint 1 (removes circular deps):** `INFRA-01` → `INFRA-02` → **`SHARE-01`** and **`SHARE-05`** (parallel) → **`INFRA-03`** → **`SHARE-02`**, **`SHARE-03`**, **`SHARE-04`** (after `INFRA-03`; **`SHARE-02`** also needs **`AUTH-02`**).
+
 **Suggested sprint order:**
 
 | Sprint | Epics | Goal |
 |---|---|---|
-| 1 | EP-01, EP-14 | Monorepo live, shared package, Expo app boots |
+| 1 | EP-01, EP-14 | Monorepo live; run `SHARE-01`/`SHARE-05` before `INFRA-03`; shared package + Expo app boots |
 | 2 | EP-02, EP-03 | Auth works on device, navigation shell in place |
 | 3 | EP-04, EP-05 | Dashboard and DMs functional |
 | 4 | EP-06, EP-07 | Groups and chat working |
@@ -1798,6 +1832,6 @@ A ticket is **Done** when all of the following are true:
 
 ---
 
-*Last updated: 2026-04-12*
+*Last updated: 2026-05-02*
 *Authored for: Together app — React Native migration*
 *Total tickets: 57 across 15 epics*

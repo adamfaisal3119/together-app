@@ -9,7 +9,10 @@
       "Bash(git mv *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(rm -rf node_modules apps/native/node_modules package-lock.json)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const lock = require\\('./package-lock.json'\\); const pkgs = lock.packages; const reactVersions = Object.entries\\(pkgs\\).filter\\(\\([k,v]\\) => k.endsWith\\('/react'\\) || k === 'node_modules/react'\\).map\\(\\([k,v]\\) => k + ': ' + v.version\\); console.log\\(reactVersions.join\\('\\\\n'\\)\\)\")"
     ]
   }
 }
