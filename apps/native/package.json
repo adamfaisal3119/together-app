@@ -4,7 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "expo start --port 8082",
+    "dev": "node ../../scripts/fix-nativewind-tailwind.js && expo start --port 8082",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "type-check": "tsc --noEmit"
