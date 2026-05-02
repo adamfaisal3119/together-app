@@ -40,3 +40,18 @@ ensureJunction(
   path.join(root, 'node_modules/expo-router'),
   'root -> expo-router'
 )
+
+// Fix 3: metro-config loadConfig.js uses `await import(absolutePath)` with a raw
+// Windows path (C:\...) which Node.js 22+ ESM loader rejects. Patch it to use
+// pathToFileURL so the loader receives a valid file:// URL.
+;(function patchMetroLoadConfig() {
+  const target = path.join(root, 'apps/native/node_modules/metro-config/src/loadConfig.js')
+  if (!fs.existsSync(target)) return
+  const src = fs.readFileSync(target, 'utf8')
+  const broken = 'await import(absolutePath)'
+  const fixed  = "await import(require('url').pathToFileURL(absolutePath).href)"
+  if (src.includes(broken)) {
+    fs.writeFileSync(target, src.replace(broken, fixed), 'utf8')
+    console.log('[postinstall] Patched metro-config loadConfig.js for Node.js 22+ on Windows')
+  }
+})()
