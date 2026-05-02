@@ -14,4 +14,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
+// Force a single React instance so the renderer and hooks use the same copy
+config.resolver.extraNodeModules = {
+  react: path.resolve(workspaceRoot, 'node_modules/react'),
+  'react-native': path.resolve(workspaceRoot, 'node_modules/react-native'),
+}
+
 module.exports = withNativeWind(config, { input: './global.css' })
