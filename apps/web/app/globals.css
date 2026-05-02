@@ -74,6 +74,14 @@ button, a, input, textarea {
   animation: fadeIn 220ms ease forwards;
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 320ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* Staggered child reveal — add .reveal to any container */
 @keyframes revealUp {
   from { opacity: 0; transform: translateY(18px); }

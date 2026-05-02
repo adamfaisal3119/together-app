@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
+import CreateEventFlow from './CreateEventFlow'
 
 function HomeIcon({ active }: { active: boolean }) {
   return (
@@ -39,30 +40,29 @@ function FriendsIcon({ active }: { active: boolean }) {
   )
 }
 
-function InvitesIcon({ active }: { active: boolean }) {
+function ProfileIcon({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="M2 7l10 7 10-7" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      {active ? (
+        <>
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </>
+      ) : (
+        <>
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </>
+      )}
     </svg>
   )
 }
 
-function SettingsIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-    </svg>
-  )
-}
-
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Home', Icon: HomeIcon },
-  { href: '/groups', label: 'Groups', Icon: GroupsIcon },
-  { href: '/invites', label: 'Invites', Icon: InvitesIcon },
-  { href: '/friends', label: 'Friends', Icon: FriendsIcon },
-  { href: '/settings', label: 'Settings', Icon: SettingsIcon },
+const SIDE_NAV = [
+  { href: '/dashboard', label: 'Home', Icon: HomeIcon, side: 'left' as const },
+  { href: '/groups', label: 'Groups', Icon: GroupsIcon, side: 'left' as const },
+  { href: '/friends', label: 'Friends', Icon: FriendsIcon, side: 'right' as const },
+  { href: '/profile', label: 'Profile', Icon: ProfileIcon, side: 'right' as const },
 ]
 
 const CHAT_ROUTES = ['/chat', '/dm/']
@@ -73,6 +73,7 @@ export default function BottomNav() {
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadDmCount, setUnreadDmCount] = useState(0)
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     const fetchPending = async () => {
@@ -86,17 +87,13 @@ export default function BottomNav() {
       setPendingCount(count ?? 0)
     }
     fetchPending()
-  // Only re-fetch when landing on or leaving the invites page
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, pathname === '/invites'])
 
   useEffect(() => {
-    let userId: string | null = null
-
     const fetchUnreadDms = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      userId = user.id
       const { count } = await supabase
         .from('direct_messages')
         .select('*', { count: 'exact', head: true })
@@ -115,7 +112,6 @@ export default function BottomNav() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  // Re-fetch when leaving the friends page (messages may have been read)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, pathname === '/friends'])
 
@@ -149,7 +145,6 @@ export default function BottomNav() {
     let channelRef: Awaited<ReturnType<typeof setupChannel>>
     setupChannel().then(c => { channelRef = c })
     return () => { if (channelRef) supabase.removeChannel(channelRef) }
-  // Re-fetch when arriving at dashboard (notifications may have been read)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, pathname === '/dashboard'])
 
@@ -157,44 +152,98 @@ export default function BottomNav() {
   const isAuth = pathname === '/login' || pathname === '/onboarding' || pathname === '/'
   if (isChat || isAuth) return null
 
+  // Home badge combines notifications + pending invites
+  const homeBadgeCount = unreadNotifCount + pendingCount
+
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-50 pointer-events-auto"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      aria-label="Bottom navigation"
-    >
-      <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">
-        <div className="flex items-center justify-around px-1 max-w-lg mx-auto">
-          {NAV_ITEMS.map(({ href, label, Icon }) => {
-            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-            const showBadge = (href === '/dashboard' && unreadNotifCount > 0) || (href === '/invites' && pendingCount > 0) || (href === '/friends' && unreadDmCount > 0)
-            const badgeCount = href === '/dashboard' ? unreadNotifCount : href === '/invites' ? pendingCount : unreadDmCount
-            return (
-              <Link
-                key={href}
-                href={href}
-                prefetch={true}
-                className={`flex flex-col items-center gap-1 flex-1 py-3 rounded-xl transition-colors ${
-                  active ? 'text-accent' : 'text-fg-faint'
-                }`}
+    <>
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 pointer-events-auto"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Bottom navigation"
+      >
+        <div className="bg-surface/90 backdrop-blur-xl border-t border-edge shadow-[0_-4px_24px_-4px_rgba(0,0,0,0.18)]">
+          <div className="flex items-center justify-around px-1 max-w-lg mx-auto h-16">
+
+            {/* Left two items */}
+            {SIDE_NAV.filter(n => n.side === 'left').map(({ href, label, Icon }) => {
+              const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+              const badgeCount = href === '/dashboard' ? homeBadgeCount : 0
+              const showBadge = badgeCount > 0
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={true}
+                  className={`flex flex-col items-center gap-1 flex-1 py-3 rounded-xl transition-colors ${
+                    active ? 'text-accent' : 'text-fg-faint'
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon active={active} />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1.5 min-w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                        {badgeCount > 9 ? '9+' : badgeCount}
+                      </span>
+                    )}
+                    {active && !showBadge && (
+                      <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
+                    )}
+                  </div>
+                  <span className={`text-[11px] ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+                </Link>
+              )
+            })}
+
+            {/* Center — Create Event (raised, accent fill, bigger) */}
+            <div className="flex-1 flex justify-center items-center">
+              <button
+                onClick={() => setCreateOpen(true)}
+                aria-label="Create event"
+                className="w-14 h-14 rounded-full bg-accent hover:bg-accent-dk active:scale-95 flex items-center justify-center shadow-lg shadow-accent/40 transition-all relative -top-4"
               >
-                <div className="relative">
-                  <Icon active={active} />
-                  {showBadge && (
-                    <span className="absolute -top-1 -right-1.5 min-w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                      {badgeCount > 9 ? '9+' : badgeCount}
-                    </span>
-                  )}
-                  {active && !showBadge && (
-                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
-                  )}
-                </div>
-                <span className={`text-[11px] ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
-              </Link>
-            )
-          })}
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Right two items */}
+            {SIDE_NAV.filter(n => n.side === 'right').map(({ href, label, Icon }) => {
+              const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+              const badgeCount = href === '/friends' ? unreadDmCount : 0
+              const showBadge = badgeCount > 0
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={true}
+                  className={`flex flex-col items-center gap-1 flex-1 py-3 rounded-xl transition-colors ${
+                    active ? 'text-accent' : 'text-fg-faint'
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon active={active} />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1.5 min-w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                        {badgeCount > 9 ? '9+' : badgeCount}
+                      </span>
+                    )}
+                    {active && !showBadge && (
+                      <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent" />
+                    )}
+                  </div>
+                  <span className={`text-[11px] ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+                </Link>
+              )
+            })}
+
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      <CreateEventFlow open={createOpen} onClose={() => setCreateOpen(false)} />
+    </>
   )
 }

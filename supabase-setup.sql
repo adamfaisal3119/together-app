@@ -370,3 +370,8 @@ create trigger on_group_invite
   after insert on group_members
   for each row
   execute function notify_group_invite();
+
+
+-- 16. FEAT: Create Event flow — groups.type column
+-- Distinguishes temporary groups (dissolve when event ends) from permanent ones.
+alter table groups add column if not exists type text not null default 'permanent';

@@ -468,7 +468,7 @@ export default function GroupPage() {
             const isMe = member.user_id === user?.id
             return (
               <div key={member.user_id} className={`flex items-center gap-3 px-5 py-3.5 ${i < members.length - 1 ? 'border-b border-edge-dim' : ''}`}>
-                <button onClick={() => router.push(isMe ? '/settings' : `/profile/${member.user_id}`)}>
+                <button onClick={() => router.push(isMe ? '/profile' : `/profile/${member.user_id}`)}>
                   <MemberAvatar member={member} size="md" />
                 </button>
                 <div className="flex-1 min-w-0">

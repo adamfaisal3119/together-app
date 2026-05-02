@@ -50,7 +50,7 @@ const PRIMARY_FEATURES = [
 ]
 
 const QUICK_LINKS = [
-  { href: '/invites', Icon: IconMail, label: 'Invites', desc: 'Accept or declines group event invites', iconColor: 'text-accent' },
+  { href: '/invites', Icon: IconMail, label: 'Invites', desc: 'Accept or decline event invites', iconColor: 'text-accent' },
   { href: '/friends', Icon: IconHeart, label: 'Friends', desc: 'Connect and message your people', iconColor: 'text-rose-400' },
   { href: '/calendar', Icon: IconCalendar, label: 'My Calendar', desc: 'Your personal schedule, private to you', iconColor: 'text-emerald-400' },
 ]
@@ -60,6 +60,7 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<{ full_name: string | null; username: string | null; avatar_url: string | null } | null>(null)
   const [statCounts, setStatCounts] = useState([0, 0])
   const [memberGroupIds, setMemberGroupIds] = useState<string[]>([])
+  const [pendingInviteCount, setPendingInviteCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
@@ -85,11 +86,12 @@ export default function Dashboard() {
 
       if (profileData && !profileData.username) { router.push('/onboarding'); return }
 
-      const [{ count: groupCount }, { count: friendCount }, { data: myGroupIds }] = await Promise.all([
+      const [{ count: groupCount }, { count: friendCount }, { data: myGroupIds }, { count: pendingCount }] = await Promise.all([
         supabase.from('group_members').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('friendships').select('*', { count: 'exact', head: true })
           .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`).eq('status', 'accepted'),
         supabase.from('group_members').select('group_id').eq('user_id', user.id),
+        supabase.from('event_rsvps').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'pending'),
       ])
 
       const groupIds = (myGroupIds || []).map((r: { group_id: string }) => r.group_id)
@@ -98,6 +100,7 @@ export default function Dashboard() {
       setProfile(profileData)
       setStatCounts(statCounts)
       setMemberGroupIds(groupIds)
+      setPendingInviteCount(pendingCount ?? 0)
       setCache(cacheKey, { profile: profileData, statCounts, groupIds })
       setLoading(false)
     }
@@ -141,7 +144,7 @@ export default function Dashboard() {
         <span className="text-lg font-bold text-accent-lt tracking-tight">Together</span>
         <div className="flex items-center gap-2">
           {user && <NotificationBell userId={user.id} />}
-          <Link href="/settings">
+          <Link href="/profile">
             <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-white text-sm font-bold ring-2 ring-accent/30 hover:ring-accent/60 transition-all overflow-hidden">
               {profile?.avatar_url
                 // eslint-disable-next-line @next/next/no-img-element
@@ -161,6 +164,28 @@ export default function Dashboard() {
           </h1>
           <p className="text-fg-muted text-sm mt-1.5">Here&apos;s what&apos;s happening today.</p>
         </div>
+
+        {/* Pending invites banner */}
+        {pendingInviteCount > 0 && (
+          <Link href="/invites" className="block">
+            <div className="flex items-center justify-between bg-accent/10 border border-accent/30 rounded-2xl px-4 py-3.5 hover:bg-accent/15 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-accent/20 flex items-center justify-center">
+                  <IconMail />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-fg">
+                    {pendingInviteCount === 1 ? '1 pending invite' : `${pendingInviteCount} pending invites`}
+                  </p>
+                  <p className="text-xs text-fg-muted">Tap to respond</p>
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-fg-faint shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Link>
+        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 gap-3">
