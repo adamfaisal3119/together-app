@@ -3,9 +3,6 @@
     "name": "Together",
     "slug": "together",
     "version": "1.0.0",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "together",
