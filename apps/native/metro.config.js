@@ -24,7 +24,11 @@ const rootReact = path.resolve(workspaceRoot, 'node_modules/react')
 withNW.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'react' || moduleName.startsWith('react/')) {
     const sub = moduleName === 'react' ? 'index.js' : moduleName.slice('react/'.length)
-    return { type: 'sourceFile', filePath: path.join(rootReact, sub) }
+    try {
+      return { type: 'sourceFile', filePath: require.resolve(path.join(rootReact, sub)) }
+    } catch {
+      return context.resolveRequest(context, moduleName, platform)
+    }
   }
   return context.resolveRequest(context, moduleName, platform)
 }
