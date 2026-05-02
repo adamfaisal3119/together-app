@@ -10,7 +10,7 @@
   "scripts": {
     "postinstall": "node scripts/fix-nativewind-tailwind.js",
     "dev": "turbo run dev --filter=@together/web",
-    "dev:native": "turbo run dev --filter=@together/native",
+    "dev:native": "npm run dev --workspace=@together/native",
     "dev:all": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
