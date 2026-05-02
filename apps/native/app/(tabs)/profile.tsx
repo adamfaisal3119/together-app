@@ -104,8 +104,9 @@ export default function ProfileScreen() {
         <TouchableOpacity
           onPress={save}
           disabled={saving}
-          className="bg-violet-600 rounded-xl py-3 items-center active:opacity-80 disabled:opacity-50"
+          className="bg-violet-600 rounded-xl py-3 items-center"
           activeOpacity={0.8}
+          style={{ opacity: saving ? 0.5 : 1 }}
         >
           <Text className="text-white font-semibold text-sm">{saving ? 'Saving…' : 'Save profile'}</Text>
         </TouchableOpacity>
@@ -118,8 +119,9 @@ export default function ProfileScreen() {
         <TouchableOpacity
           onPress={signOut}
           disabled={signingOut}
-          className="bg-rose-500/10 border border-rose-500/30 rounded-xl py-3 items-center active:opacity-80 disabled:opacity-50"
+          className="bg-rose-500/10 border border-rose-500/30 rounded-xl py-3 items-center"
           activeOpacity={0.8}
+          style={{ opacity: signingOut ? 0.5 : 1 }}
         >
           <Text className="text-rose-400 font-semibold text-sm">{signingOut ? 'Signing out…' : 'Sign out'}</Text>
         </TouchableOpacity>

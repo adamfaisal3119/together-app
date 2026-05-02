@@ -49,7 +49,9 @@ export default function LoginScreen() {
       <TouchableOpacity
         onPress={handleAuth}
         disabled={loading || !email.trim() || !password.trim()}
-        className="bg-violet-600 rounded-2xl py-4 items-center mb-4 active:opacity-80 disabled:opacity-40"
+        activeOpacity={0.8}
+        className="bg-violet-600 rounded-2xl py-4 items-center mb-4"
+        style={{ opacity: loading || !email.trim() || !password.trim() ? 0.4 : 1 }}
       >
         <Text className="text-white font-semibold text-base">
           {loading ? '…' : mode === 'sign_in' ? 'Sign in' : 'Create account'}
