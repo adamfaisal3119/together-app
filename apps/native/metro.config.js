@@ -16,10 +16,10 @@ config.resolver.nodeModulesPaths = [
 
 const withNW = withNativeWind(config, { input: './global.css' })
 
-// Force a single React instance.
-// extraNodeModules is a fallback (ignored when local node_modules exists), so
-// we use resolveRequest which fires before any local resolution.
-const rootReact = path.resolve(workspaceRoot, 'node_modules/react')
+// Force a single React instance — the one local to this workspace (19.1.0),
+// which matches the version the react-native renderer was compiled against.
+// resolveRequest fires before any local resolution (unlike extraNodeModules).
+const rootReact = path.resolve(projectRoot, 'node_modules/react')
 
 withNW.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'react' || moduleName.startsWith('react/')) {
